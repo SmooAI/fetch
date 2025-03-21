@@ -35,52 +35,234 @@ SmooAI is a platform for building and deploying AI-powered apps.
 
 Learn more on [smoo.ai](https://smoo.ai)
 
-## About @smooai/library-template
+## SmooAI Packages
 
-A template repository for creating new SmooAI libraries with standardized tooling, configuration, and best practices.
+Check out other SmooAI packages at [npmjs.com/org/smooai](https://www.npmjs.com/org/smooai)
 
-![GitHub License](https://img.shields.io/github/license/SmooAI/library-template?style=for-the-badge)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SmooAI/library-template/release.yml?style=for-the-badge)
-![GitHub Repo stars](https://img.shields.io/github/stars/SmooAI/library-template?style=for-the-badge)
+## About @smooai/fetch
+
+A powerful HTTP client library with built-in support for retries, timeouts, rate limiting, and circuit breaking. Designed for both Node.js and browser environments, with seamless integration with AWS Lambda and structured logging.
+
+![NPM Version](https://img.shields.io/npm/v/%40smooai%2Ffetch?style=for-the-badge)
+![NPM Downloads](https://img.shields.io/npm/dw/%40smooai%2Ffetch?style=for-the-badge)
+![NPM Last Update](https://img.shields.io/npm/last-update/%40smooai%2Ffetch?style=for-the-badge)
+
+![GitHub License](https://img.shields.io/github/license/SmooAI/fetch?style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SmooAI/fetch/release.yml?style=for-the-badge)
+![GitHub Repo stars](https://img.shields.io/github/stars/SmooAI/fetch?style=for-the-badge)
+
+### Install
+
+```sh
+pnpm add @smooai/fetch
+```
 
 ### Key Features
 
-- 📦 Preconfigured development environment with TypeScript, ESLint, and Prettier
-- 🧪 Testing setup with Vitest
-- 🔄 Changesets for version management
-- 📚 Integration with SmooAI core utilities
+#### Core HTTP Client
 
-### Dependencies
+- Full TypeScript support
+- Compatible with Node.js and browser environments
+- Automatic JSON parsing and stringifying
+- Structured error handling with detailed response information
+- Automatic context propagation (correlation IDs, user agents)
+- TLS 1.2 security by default
 
-This template comes pre-configured with essential SmooAI packages:
+#### Resilience Features
 
-#### @smooai/logger
+- **Retry Mechanism**
 
-A structured logging utility for SmooAI applications that provides:
+    - Configurable retry attempts and intervals
+    - Jitter support for distributed retries
+    - Smart retry decisions based on response status
+    - Automatic handling of Retry-After headers
+    - Custom retry callbacks
 
-- Standardized log formatting
-- Log level management
-- Integration with SmooAI's logging infrastructure
+- **Timeout Control**
 
-#### @smooai/utils
+    - Configurable timeout duration
+    - Optional retry on timeout
+    - Automatic timeout error handling
 
-Common utility functions and helpers used across SmooAI applications.
+- **Rate Limiting**
 
-### Development Setup
+    - Configurable request limits per time period
+    - Automatic rate limit header handling
+    - Smart retry on rate limit errors
+    - Custom rate limit retry strategies
 
-1. Clone the repository
-2. Install dependencies:
+- **Circuit Breaking**
+    - Sliding window failure rate tracking
+    - Configurable failure thresholds
+    - Half-open state support
+    - Automatic recovery
+    - Custom error callbacks
 
-```sh
-pnpm install
+#### AWS Lambda Integration
+
+- Automatic AWS Lambda context extraction
+- Structured logging with @smooai/logger
+- Request/response correlation tracking
+- CloudWatch optimized logging
+
+### Usage Examples
+
+#### Basic Usage
+
+```typescript
+import fetch from '@smooai/fetch';
+
+// Simple GET request
+const response = await fetch('https://api.example.com/data');
+
+// POST request with JSON body
+const response = await fetch('https://api.example.com/data', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: {
+        key: 'value',
+    },
+});
 ```
 
-### Available Scripts
+#### With Retry Options
 
-- `pnpm test` - Run tests using Vitest
-- `pnpm build` - Build the library using tsup
-- `pnpm lint` - Run ESLint
-- `pnpm format` - Format code with Prettier
+```typescript
+import fetch from '@smooai/fetch';
+
+const response = await fetch(
+    'https://api.example.com/data',
+    {},
+    {
+        retry: {
+            attempts: 3,
+            initialIntervalMs: 1000,
+            mode: RetryMode.JITTER,
+            factor: 2,
+            jitterAdjustment: 0.5,
+        },
+    },
+);
+```
+
+#### With Rate Limiting and Circuit Breaking
+
+```typescript
+import { generateFetchWithOptions } from '@smooai/fetch';
+
+const fetch = generateFetchWithOptions({
+    containerOptions: {
+        rateLimit: {
+            name: 'api-rate-limit',
+            limitForPeriod: 100,
+            limitPeriodMs: 60000, // 1 minute
+        },
+        circuitBreaker: {
+            name: 'api-circuit-breaker',
+            failureRateThreshold: 50,
+            slowCallRateThreshold: 80,
+            slowCallDurationThresholdMs: 5000,
+            slidingWindowSize: 10,
+        },
+    },
+    requestOptions: {
+        timeout: {
+            timeoutMs: 5000,
+        },
+    },
+});
+
+// Use the configured fetch instance
+const response = await fetch('https://api.example.com/data');
+```
+
+#### Error Handling
+
+```typescript
+import fetch, { HTTPResponseError, RetryError } from '@smooai/fetch';
+
+try {
+    const response = await fetch('https://api.example.com/data');
+} catch (error) {
+    if (error instanceof HTTPResponseError) {
+        console.error('HTTP Error:', error.response.status);
+        console.error('Response Data:', error.response.data);
+    } else if (error instanceof RetryError) {
+        console.error('Retry failed after all attempts');
+    }
+}
+```
+
+### Configuration Options
+
+#### Request Options
+
+```typescript
+interface RequestOptions {
+    logger?: AwsLambdaLogger;
+    timeout?: {
+        name?: string;
+        timeoutMs: number;
+        retry?: RetryOptions;
+    };
+    retry?: RetryOptions;
+}
+```
+
+#### Container Options
+
+```typescript
+interface FetchContainerOptions {
+    rateLimit?: {
+        name?: string;
+        limitForPeriod: number;
+        limitPeriodMs: number;
+        retry?: RetryOptions;
+    };
+    circuitBreaker?: {
+        name?: string;
+        state?: BreakerState;
+        failureRateThreshold?: number;
+        slowCallRateThreshold?: number;
+        slowCallDurationThresholdMs?: number;
+        permittedNumberOfCallsInHalfOpenState?: number;
+        halfOpenStateMaxDelayMs?: number;
+        slidingWindowSize?: number;
+        minimumNumberOfCalls?: number;
+        openStateDelayMs?: number;
+        onError?: ErrorCallback;
+    };
+}
+```
+
+### Default Configurations
+
+The library provides sensible defaults for common use cases:
+
+```typescript
+const DEFAULT_RETRY_OPTIONS = {
+    attempts: 2,
+    initialIntervalMs: 500,
+    mode: RetryMode.JITTER,
+    factor: 2,
+    jitterAdjustment: 0.5,
+};
+
+const DEFAULT_RATE_LIMIT_RETRY_OPTIONS = {
+    attempts: 1,
+    initialIntervalMs: 500,
+};
+```
+
+### Built With
+
+- TypeScript
+- Mollitia (Circuit Breaker, Rate Limiter)
+- AWS Lambda Integration
+- Structured Logging
+- Modern Fetch API
 
 ## Contributing
 
