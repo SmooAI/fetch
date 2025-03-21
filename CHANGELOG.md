@@ -1,5 +1,11 @@
 # @smooai/library-template
 
+## 1.0.3
+
+### Patch Changes
+
+- 8ceaebc: Updating @smooai/fetch to be its own package.
+
 ## 1.0.2
 
 ### Patch Changes
