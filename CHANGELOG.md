@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.0.4
+
+### Patch Changes
+
+- 300d106: Fixed package.json for publishing.
+
 ## 1.0.3
 
 ### Patch Changes
