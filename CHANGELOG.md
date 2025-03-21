@@ -1,4 +1,4 @@
-# @smooai/library-template
+# @smooai/fetch
 
 ## 1.0.3
 

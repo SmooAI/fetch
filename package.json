@@ -1,15 +1,15 @@
 {
-    "name": "@smooai/library-template",
+    "name": "@smooai/fetch",
     "version": "1.0.3",
     "private": true,
-    "description": "SmooAI Library Template",
-    "homepage": "https://github.com/SmooAI/library-template#readme",
+    "description": "SmooAI Fetch",
+    "homepage": "https://github.com/SmooAI/fetch#readme",
     "bugs": {
-        "url": "https://github.com/SmooAI/library-template/issues"
+        "url": "https://github.com/SmooAI/fetch/issues"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/SmooAI/library-template.git"
+        "url": "https://github.com/SmooAI/fetch.git"
     },
     "license": "MIT",
     "author": {
@@ -64,5 +64,8 @@
         "vite-tsconfig-paths": "^5.1.4",
         "vitest": "^3.0.7"
     },
-    "packageManager": "pnpm@10.6.1+sha512.40ee09af407fa9fbb5fbfb8e1cb40fbb74c0af0c3e10e9224d7b53c7658528615b2c92450e74cfad91e3a2dcafe3ce4050d80bda71d757756d2ce2b66213e9a3"
+    "packageManager": "pnpm@10.6.1+sha512.40ee09af407fa9fbb5fbfb8e1cb40fbb74c0af0c3e10e9224d7b53c7658528615b2c92450e74cfad91e3a2dcafe3ce4050d80bda71d757756d2ce2b66213e9a3",
+    "publishConfig": {
+        "access": "public"
+    }
 }
