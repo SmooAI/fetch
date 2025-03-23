@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.0.5
+
+### Patch Changes
+
+- 4d45f19: Fix npm publishing.
+
 ## 1.0.4
 
 ### Patch Changes
