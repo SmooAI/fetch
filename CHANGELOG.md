@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.0.7
+
+### Patch Changes
+
+- 3503fdb: Fix index export via @smooai/utils update.
+
 ## 1.0.6
 
 ### Patch Changes
