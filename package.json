@@ -27,6 +27,9 @@
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.ts",
+    "files": [
+        "dist/**"
+    ],
     "scripts": {
         "build": "pnpm create-entry-points -i \"src/**/*.ts\" && pnpm tsup",
         "check-all": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
