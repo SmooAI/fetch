@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.0.6
+
+### Patch Changes
+
+- 4277a0f: Fix package file selection."
+
 ## 1.0.5
 
 ### Patch Changes
