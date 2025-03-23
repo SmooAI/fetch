@@ -13,8 +13,8 @@ importers:
         specifier: ^1.0.18
         version: 1.0.18
       '@smooai/utils':
-        specifier: ^1.0.17
-        version: 1.0.17(@types/node@22.13.10)(typescript@5.8.2)
+        specifier: ^1.0.18
+        version: 1.0.18(@types/node@22.13.10)(typescript@5.8.2)
       lodash.merge:
         specifier: ^4.6.2
         version: 4.6.2
@@ -1064,8 +1064,8 @@ packages:
     resolution: {integrity: sha512-hbCs81K8VAZimEcRaxqym5JjdTgx51FAdBY7M+2FX60D7lfP9Yhlr0ca/yky6ayDr6Yl+BtblOs6aH5WATlVyQ==}
     engines: {node: '>=20.0.0'}
 
-  '@smooai/utils@1.0.17':
-    resolution: {integrity: sha512-PzUFDrYW675F2a2EzKmAEfpASbTEUwMnKslikgJH7SanfRuQU1iXgu5Tgd0OB2mwxlpCKtsWmQKR8XCrIIgKMg==}
+  '@smooai/utils@1.0.18':
+    resolution: {integrity: sha512-VTTHIHJoIzzQ6K9TpGZvYv2qwh8Tlya0B3Hx6b4pGD3BUSfqr0MCba6C9oCvXjZ6eQcOA5KfpVkXl5DevvnOPg==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -3691,8 +3691,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  yocto-queue@1.2.0:
-    resolution: {integrity: sha512-KHBC7z61OJeaMGnF3wqNZj+GGNXOyypZviiKpQeiHirG5Ib1ImwcLBH70rbMSkKfSmUNBsdf2PwaEJtKvgmkNw==}
+  yocto-queue@1.2.1:
+    resolution: {integrity: sha512-AyeEbWOu/TAXdxlV9wmGcR0+yh2j3vYPGOECcIj2S7MkrLyC7ne+oye2BKTItt0ii2PHk4cDy+95+LshzbXnGg==}
     engines: {node: '>=12.20'}
 
   zod-validation-error@3.4.0:
@@ -5070,7 +5070,7 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@smooai/utils@1.0.17(@types/node@22.13.10)(typescript@5.8.2)':
+  '@smooai/utils@1.0.18(@types/node@22.13.10)(typescript@5.8.2)':
     dependencies:
       '@oclif/core': 2.16.0(@types/node@22.13.10)(typescript@5.8.2)
       '@oclif/plugin-help': 6.2.27
@@ -6983,7 +6983,7 @@ snapshots:
 
   p-limit@4.0.0:
     dependencies:
-      yocto-queue: 1.2.0
+      yocto-queue: 1.2.1
 
   p-locate@4.1.0:
     dependencies:
@@ -7906,7 +7906,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  yocto-queue@1.2.0: {}
+  yocto-queue@1.2.1: {}
 
   zod-validation-error@3.4.0(zod@3.24.2):
     dependencies:
