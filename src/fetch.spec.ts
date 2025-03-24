@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
 import { TimeoutError } from 'mollitia';
 import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
-import fetch, { generateFetchWithOptions, HTTPResponseError, RequestInfo, Response, RetryError } from './fetch';
+import fetch, { FetchBuilder, HTTPResponseError, RequestInfo, Response, RetryError, DEFAULT_RATE_LIMIT_RETRY_OPTIONS } from './fetch';
 import { ContextHeader } from '@smooai/logger/AwsLambdaLogger';
 import sleep from '@smooai/utils/utils/sleep';
+import { z } from 'zod';
 
 const URL = 'https://smoo.ai';
 
@@ -85,21 +86,18 @@ describe('Test fetch', () => {
 
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(false, 429);
         });
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(false, 500);
         });
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(false, 501);
@@ -136,21 +134,18 @@ describe('Test fetch', () => {
 
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(false, 429);
         });
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(false, 500);
         });
         mockFetch.mockImplementationOnce(async () => {
             (async () => {
-                // This is kinda tricky but it seems to work to run out the retry interval timer.
                 await vi.runAllTimersAsync();
             })();
             return fakeResponse(true, 200);
@@ -256,14 +251,7 @@ describe('Test fetch', () => {
             return fakeResponse(true, 200);
         });
 
-        const fetchWithRateLimit = generateFetchWithOptions({
-            containerOptions: {
-                rateLimit: {
-                    limitForPeriod: 2,
-                    limitPeriodMs: 400,
-                },
-            },
-        });
+        const fetchWithRateLimit = new FetchBuilder().withRateLimit(2, 400, DEFAULT_RATE_LIMIT_RETRY_OPTIONS).build();
 
         let error: Error;
         try {
@@ -317,14 +305,7 @@ describe('Test fetch', () => {
             return fakeResponse(true, 200);
         });
 
-        const fetchWithRateLimit = generateFetchWithOptions({
-            containerOptions: {
-                rateLimit: {
-                    limitForPeriod: 2,
-                    limitPeriodMs: 1000,
-                },
-            },
-        });
+        const fetchWithRateLimit = new FetchBuilder().withRateLimit(2, 1000, DEFAULT_RATE_LIMIT_RETRY_OPTIONS).build();
 
         let error: Error;
         try {
@@ -427,5 +408,346 @@ describe('Test fetch', () => {
         expect(httpError.response.ok).toBeFalsy();
         expect(httpError.response.status).toBe(400);
         expect(httpError.message).toContain('Error message 127');
+    });
+
+    describe('Schema validation', () => {
+        test('Test successful schema validation', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+            expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+
+        test('Test failed schema validation', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: 123, name: 'test' }; // id is number, should be string
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            let error: Error | undefined;
+            try {
+                await fetchWithSchema(
+                    URL,
+                    {
+                        method: 'GET',
+                    },
+                    { schema },
+                );
+                throw new Error('Expected schema validation to fail');
+            } catch (caughtError) {
+                error = caughtError as Error;
+            }
+
+            expect(error).toBeDefined();
+            expect(error!.message).toContain('Expected string, received number at "id"');
+        });
+
+        test('Test multiple schema validation errors', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = {
+                id: 123, // should be string
+                name: 456, // should be string
+                age: 'not a number', // should be number
+                email: 'invalid-email', // should be valid email
+            };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+                age: z.number(),
+                email: z.string().email(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            let error: Error | undefined;
+            try {
+                await fetchWithSchema(
+                    URL,
+                    {
+                        method: 'GET',
+                    },
+                    { schema },
+                );
+                throw new Error('Expected schema validation to fail');
+            } catch (caughtError) {
+                error = caughtError as Error;
+            }
+
+            expect(error).toBeDefined();
+            expect(error!.message).toContain('1. Expected string, received number at "id"');
+            expect(error!.message).toContain('2. Expected string, received number at "name"');
+            expect(error!.message).toContain('3. Expected number, received string at "age"');
+            expect(error!.message).toContain('4. Invalid email at "email"');
+        });
+
+        test('Test schema validation with nested objects', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = {
+                user: {
+                    id: '123',
+                    name: 'test',
+                    preferences: {
+                        theme: 'dark',
+                        notifications: true,
+                    },
+                },
+                timestamp: '2024-03-20T12:00:00Z',
+            };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                user: z.object({
+                    id: z.string(),
+                    name: z.string(),
+                    preferences: z.object({
+                        theme: z.string(),
+                        notifications: z.boolean(),
+                    }),
+                }),
+                timestamp: z.string().datetime(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+            expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+
+        test('Test schema validation with arrays', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = {
+                items: [
+                    { id: '1', name: 'item 1' },
+                    { id: '2', name: 'item 2' },
+                ],
+                total: 2,
+            };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                items: z.array(
+                    z.object({
+                        id: z.string(),
+                        name: z.string(),
+                    }),
+                ),
+                total: z.number(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+            expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+
+        test('Test schema validation with non-JSON response', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, null, 'plain text response', false));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.isJson).toBeFalsy();
+            expect(response.dataString).toBe('plain text response');
+            expect(response.data).toBeUndefined();
+            expect(schema.safeParse(response.data).success).toBeFalsy();
+        });
+
+        test('Test request with predefined headers', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const predefinedHeaders = {
+                'X-Custom-Header': 'custom-value',
+                'X-Request-ID': 'req-123',
+                'X-Environment': 'test',
+            };
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>()
+                .withSchema(schema)
+                .withInit({
+                    headers: predefinedHeaders,
+                })
+                .build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+
+            // Verify headers were sent correctly
+            expect(mockFetch.mock.calls[0][1]?.headers).toBeDefined();
+            const sentHeaders = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(sentHeaders['X-Custom-Header']).toBe('custom-value');
+            expect(sentHeaders['X-Request-ID']).toBe('req-123');
+            expect(sentHeaders['X-Environment']).toBe('test');
+            // Verify context headers are still present
+            expect(sentHeaders[ContextHeader.CorrelationId]).toBeDefined();
+        });
+
+        test('Test request with authentication', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const authToken = 'Bearer test-token-123';
+            const fetchWithSchema = new FetchBuilder<typeof schema>()
+                .withSchema(schema)
+                .withInit({
+                    headers: {
+                        Authorization: authToken,
+                    },
+                })
+                .build();
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+
+            // Verify auth header was sent correctly
+            expect(mockFetch.mock.calls[0][1]?.headers).toBeDefined();
+            const sentHeaders = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(sentHeaders['Authorization']).toBe(authToken);
+            // Verify context headers are still present
+            expect(sentHeaders[ContextHeader.CorrelationId]).toBeDefined();
+        });
+
+        test('Test request with merged headers', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const predefinedHeaders = {
+                'X-Custom-Header': 'custom-value',
+                Authorization: 'Bearer test-token-123',
+            };
+
+            const fetchWithSchema = new FetchBuilder<typeof schema>()
+                .withSchema(schema)
+                .withInit({
+                    headers: predefinedHeaders,
+                })
+                .build();
+
+            const requestHeaders = {
+                'X-Request-ID': 'req-123',
+                'X-Environment': 'test',
+            };
+
+            const response = await fetchWithSchema(
+                URL,
+                {
+                    method: 'GET',
+                    headers: requestHeaders,
+                },
+                { schema },
+            );
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+
+            // Verify all headers were merged correctly
+            expect(mockFetch.mock.calls[0][1]?.headers).toBeDefined();
+            const sentHeaders = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(sentHeaders['X-Custom-Header']).toBe('custom-value');
+            expect(sentHeaders['Authorization']).toBe('Bearer test-token-123');
+            expect(sentHeaders['X-Request-ID']).toBe('req-123');
+            expect(sentHeaders['X-Environment']).toBe('test');
+            // Verify context headers are still present
+            expect(sentHeaders[ContextHeader.CorrelationId]).toBeDefined();
+        });
     });
 });

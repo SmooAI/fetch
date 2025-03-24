@@ -41,7 +41,7 @@ Check out other SmooAI packages at [npmjs.com/org/smooai](https://www.npmjs.com/
 
 ## About @smooai/fetch
 
-A powerful HTTP client library with built-in support for retries, timeouts, rate limiting, and circuit breaking. Designed for both Node.js and browser environments, with seamless integration with AWS Lambda and structured logging.
+A powerful fetch client library built on top of the native `fetch` API, designed for both Node.js and browser environments. Features built-in support for retries, timeouts, rate limiting, circuit breaking, and Standard Schema validation.
 
 ![NPM Version](https://img.shields.io/npm/v/%40smooai%2Ffetch?style=for-the-badge)
 ![NPM Downloads](https://img.shields.io/npm/dw/%40smooai%2Ffetch?style=for-the-badge)
@@ -59,16 +59,22 @@ pnpm add @smooai/fetch
 
 ### Key Features
 
-#### Core HTTP Client
+#### 🚀 Native Fetch API
 
+- Built on top of the native `fetch` API
+- Works seamlessly in both Node.js and browser environments
 - Full TypeScript support
-- Compatible with Node.js and browser environments
 - Automatic JSON parsing and stringifying
 - Structured error handling with detailed response information
-- Automatic context propagation (correlation IDs, user agents)
-- TLS 1.2 security by default
 
-#### Resilience Features
+#### ✅ Schema Validation
+
+- Built-in support for [Standard Schema](https://github.com/standard-schema/standard-schema) compatible validators
+- Works with Zod, ArkType, and other Standard Schema implementations
+- Type-safe response validation
+- Human-readable validation errors
+
+#### 🛡️ Resilience Features
 
 - **Retry Mechanism**
 
@@ -98,16 +104,25 @@ pnpm add @smooai/fetch
     - Automatic recovery
     - Custom error callbacks
 
-#### AWS Lambda Integration
+#### 🔄 Automatic Context
 
-- Automatic AWS Lambda context extraction
-- Structured logging with @smooai/logger
-- Request/response correlation tracking
-- CloudWatch optimized logging
+- Automatic context propagation (correlation IDs, user agents)
+- Structured logging integration
 
-### Usage Examples
+### Examples
 
-#### Basic Usage
+- [Basic Usage](#basic-usage)
+- [FetchBuilder Pattern](#fetchbuilder-pattern)
+- [Retry Example](#retry-example)
+- [Timeout Example](#timeout-example)
+- [Rate Limit Example](#rate-limit-example)
+- [Circuit Breaker Example](#circuit-breaker-example)
+- [Schema Validation Example](#schema-validation-example)
+- [Predefined Authentication Example](#predefined-authentication-example)
+- [Custom Logger Example](#custom-logger-example)
+- [Error Handling](#error-handling)
+
+#### Basic Usage <a name="basic-usage"></a>
 
 ```typescript
 import fetch from '@smooai/fetch';
@@ -127,61 +142,234 @@ const response = await fetch('https://api.example.com/data', {
 });
 ```
 
-#### With Retry Options
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### FetchBuilder Pattern
+
+The `FetchBuilder` provides a fluent interface for configuring fetch instances:
 
 ```typescript
-import fetch from '@smooai/fetch';
+import { FetchBuilder } from '@smooai/fetch';
+import { z } from 'zod';
 
-const response = await fetch(
-    'https://api.example.com/data',
-    {},
-    {
-        retry: {
-            attempts: 3,
-            initialIntervalMs: 1000,
-            mode: RetryMode.JITTER,
-            factor: 2,
-            jitterAdjustment: 0.5,
-        },
-    },
-);
-```
-
-#### With Rate Limiting and Circuit Breaking
-
-```typescript
-import { generateFetchWithOptions } from '@smooai/fetch';
-
-const fetch = generateFetchWithOptions({
-    containerOptions: {
-        rateLimit: {
-            name: 'api-rate-limit',
-            limitForPeriod: 100,
-            limitPeriodMs: 60000, // 1 minute
-        },
-        circuitBreaker: {
-            name: 'api-circuit-breaker',
-            failureRateThreshold: 50,
-            slowCallRateThreshold: 80,
-            slowCallDurationThresholdMs: 5000,
-            slidingWindowSize: 10,
-        },
-    },
-    requestOptions: {
-        timeout: {
-            timeoutMs: 5000,
-        },
-    },
+// Define a response schema
+const UserSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
 });
 
+// Create a configured fetch instance
+const fetch = new FetchBuilder()
+    .withTimeout(5000) // 5 second timeout
+    .withRetry({
+        attempts: 3,
+        initialIntervalMs: 1000,
+        mode: RetryMode.JITTER,
+    })
+    .withRateLimit(100, 60000) // 100 requests per minute
+    .withSchema(UserSchema)
+    .build();
+
 // Use the configured fetch instance
-const response = await fetch('https://api.example.com/data');
+const response = await fetch('https://api.example.com/users/123');
+// response.data is now typed as { id: string; name: string; email: string }
 ```
 
-#### Error Handling
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Retry Example <a name="retry-example"></a>
 
 ```typescript
-import fetch, { HTTPResponseError, RetryError } from '@smooai/fetch';
+import { FetchBuilder, RetryMode } from '@smooai/fetch';
+
+const fetch = new FetchBuilder()
+    .withRetry({
+        attempts: 3,
+        initialIntervalMs: 1000,
+        mode: RetryMode.JITTER,
+        factor: 2,
+        jitterAdjustment: 0.5,
+        onRejection: (error) => {
+            // Custom retry logic
+            if (error instanceof HTTPResponseError) {
+                return error.response.status >= 500;
+            }
+            return false;
+        },
+    })
+    .build();
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Timeout Example <a name="timeout-example"></a>
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+
+const fetch = new FetchBuilder()
+    .withTimeout(5000) // 5 second timeout
+    .build();
+
+try {
+    const response = await fetch('https://api.example.com/slow-endpoint');
+} catch (error) {
+    if (error instanceof TimeoutError) {
+        console.error('Request timed out');
+    }
+}
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Rate Limit Example <a name="rate-limit-example"></a>
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+
+const fetch = new FetchBuilder()
+    .withRateLimit(100, 60000, {
+        attempts: 1,
+        initialIntervalMs: 1000,
+        onRejection: (error) => {
+            if (error instanceof RatelimitError) {
+                return error.remainingTimeInRatelimit;
+            }
+            return false;
+        },
+    })
+    .build();
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Circuit Breaker Example <a name="circuit-breaker-example"></a>
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+
+const fetch = new FetchBuilder()
+    .withCircuitBreaker({
+        failureRateThreshold: 50,
+        slowCallRateThreshold: 80,
+        slowCallDurationThresholdMs: 5000,
+        slidingWindowSize: 10,
+        minimumNumberOfCalls: 5,
+        openStateDelayMs: 60000,
+        onError: (error) => {
+            return error instanceof HTTPResponseError && error.response.status >= 500;
+        },
+    })
+    .build();
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Schema Validation Example
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+import { z } from 'zod';
+
+// Define response schema
+const UserSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+});
+
+// Create a fetch instance with schema validation
+const fetch = new FetchBuilder().withSchema(UserSchema).build();
+
+try {
+    const response = await fetch('https://api.example.com/users/123');
+    // response.data is typed as { id: string; name: string; email: string }
+} catch (error) {
+    if (error instanceof HumanReadableSchemaError) {
+        console.error('Validation failed:', error.message);
+        // Example output:
+        // Validation failed: Invalid email format at path: email
+    }
+}
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Predefined Authentication Example
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+import { z } from 'zod';
+
+// Define response schema
+const UserSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+});
+
+// Create a fetch instance with predefined auth headers
+const fetch = new FetchBuilder()
+    .withSchema(UserSchema)
+    .withInit({
+        headers: {
+            Authorization: 'Bearer your-auth-token',
+            'X-API-Key': 'your-api-key',
+            'X-Client-ID': 'your-client-id',
+        },
+    })
+    .build();
+
+// All requests will automatically include the auth headers
+const response = await fetch('https://api.example.com/users/123');
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Custom Logger Example
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+import { z } from 'zod';
+
+// Create a custom logger that implements the LoggerInterface
+const customLogger = {
+    debug: (message: string, ...args: any[]) => {
+        console.debug(`[DEBUG] ${message}`, ...args);
+    },
+    info: (message: string, ...args: any[]) => {
+        console.info(`[INFO] ${message}`, ...args);
+    },
+    warn: (message: string, ...args: any[]) => {
+        console.warn(`[WARN] ${message}`, ...args);
+    },
+    error: (error: Error | unknown, message: string, ...args: any[]) => {
+        console.error(`[ERROR] ${message}`, error, ...args);
+    },
+};
+
+// Create a fetch instance with the custom logger
+const fetch = new FetchBuilder()
+    .withLogger(customLogger)
+    .withSchema(
+        z.object({
+            id: z.string(),
+            name: z.string(),
+        }),
+    )
+    .build();
+
+// All requests will now use your custom logger
+const response = await fetch('https://api.example.com/users/123');
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Error Handling <a name="error-handling"></a>
+
+```typescript
+import fetch, { HTTPResponseError, RetryError, TimeoutError, RatelimitError } from '@smooai/fetch';
 
 try {
     const response = await fetch('https://api.example.com/data');
@@ -191,78 +379,24 @@ try {
         console.error('Response Data:', error.response.data);
     } else if (error instanceof RetryError) {
         console.error('Retry failed after all attempts');
+    } else if (error instanceof TimeoutError) {
+        console.error('Request timed out');
+    } else if (error instanceof RatelimitError) {
+        console.error('Rate limit exceeded');
     }
 }
 ```
 
-### Configuration Options
-
-#### Request Options
-
-```typescript
-interface RequestOptions {
-    logger?: AwsLambdaLogger;
-    timeout?: {
-        name?: string;
-        timeoutMs: number;
-        retry?: RetryOptions;
-    };
-    retry?: RetryOptions;
-}
-```
-
-#### Container Options
-
-```typescript
-interface FetchContainerOptions {
-    rateLimit?: {
-        name?: string;
-        limitForPeriod: number;
-        limitPeriodMs: number;
-        retry?: RetryOptions;
-    };
-    circuitBreaker?: {
-        name?: string;
-        state?: BreakerState;
-        failureRateThreshold?: number;
-        slowCallRateThreshold?: number;
-        slowCallDurationThresholdMs?: number;
-        permittedNumberOfCallsInHalfOpenState?: number;
-        halfOpenStateMaxDelayMs?: number;
-        slidingWindowSize?: number;
-        minimumNumberOfCalls?: number;
-        openStateDelayMs?: number;
-        onError?: ErrorCallback;
-    };
-}
-```
-
-### Default Configurations
-
-The library provides sensible defaults for common use cases:
-
-```typescript
-const DEFAULT_RETRY_OPTIONS = {
-    attempts: 2,
-    initialIntervalMs: 500,
-    mode: RetryMode.JITTER,
-    factor: 2,
-    jitterAdjustment: 0.5,
-};
-
-const DEFAULT_RATE_LIMIT_RETRY_OPTIONS = {
-    attempts: 1,
-    initialIntervalMs: 500,
-};
-```
+<p align="right">(<a href="#examples">back to examples</a>)</p>
 
 ### Built With
 
 - TypeScript
-- Mollitia (Circuit Breaker, Rate Limiter)
-- AWS Lambda Integration
-- Structured Logging
-- Modern Fetch API
+- Native Fetch API
+- [Mollitia](https://github.com/genesys/mollitia) (Circuit Breaker, Rate Limiter)
+- [Standard Schema](https://github.com/standard-schema/standard-schema)
+- [@smooai/logger](https://github.com/SmooAI/logger) for structured logging (bring your own logger supported)
+- [@smooai/utils](https://github.com/SmooAI/utils) for Standard Schema validation and human-readable error generation
 
 ## Contributing
 

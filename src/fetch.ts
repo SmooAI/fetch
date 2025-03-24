@@ -1,18 +1,60 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import merge from 'lodash.merge';
 import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
-
-import tls from 'tls';
-
-import AwsLambdaLogger, { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest } from '@smooai/logger/AwsLambdaLogger';
+import Logger, { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
+import { faker } from '@faker-js/faker';
+import { handleSchemaValidation, HumanReadableSchemaError } from '@smooai/utils/validation/standardSchema';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 export { RatelimitError, TimeoutError } from 'mollitia';
 export * from 'mollitia';
-const contextLogger = new AwsLambdaLogger();
-tls.DEFAULT_MIN_VERSION = 'TLSv1.2';
 
-export type ResponseWithBody = Response & {
-    data?: any;
+/**
+ * Interface for browser-compatible logging functionality.
+ * Provides methods for different log levels with context support.
+ */
+export interface LoggerInterface {
+    /**
+     * Log a debug message with optional context.
+     * @param message - The message to log
+     * @param args - Additional arguments to include in the log
+     */
+    debug(message: string, ...args: any[]): void;
+
+    /**
+     * Log an info message with optional context.
+     * @param message - The message to log
+     * @param args - Additional arguments to include in the log
+     */
+    info(message: string, ...args: any[]): void;
+
+    /**
+     * Log a warning message with optional context.
+     * @param message - The message to log
+     * @param args - Additional arguments to include in the log
+     */
+    warn(message: string, ...args: any[]): void;
+
+    /**
+     * Log an error message with the error object and optional context.
+     * @param error - The error object to log
+     * @param message - The error message
+     * @param args - Additional arguments to include in the log
+     */
+    error(error: Error | unknown, message: string, ...args: any[]): void;
+}
+
+const contextLogger = new Logger({ name: 'fetch' });
+
+/**
+ * Extended Response type that includes parsed body data and metadata.
+ * @template T - The type of the response body data
+ */
+export type ResponseWithBody<T = any> = Response & {
+    /** The parsed response body data */
+    data?: T;
+    /** Whether the response body is JSON */
     isJson: boolean;
+    /** The raw response body as a string */
     dataString: string;
 };
 
@@ -35,35 +77,44 @@ export type { Headers, RequestInit, Request, Response };
  * - DEFAULT_RATE_LIMIT_RETRY_OPTIONS
  */
 
-export class HTTPResponseError extends Error {
-    public response: ResponseWithBody;
-    constructor(response: ResponseWithBody, msg?: string) {
+/**
+ * Error thrown when an HTTP request fails with a non-2xx status code.
+ * Includes the response data and attempts to extract error information.
+ * @template T - The type of the response body data
+ */
+export class HTTPResponseError<T = any> extends Error {
+    /** The response object containing the error details */
+    public response: ResponseWithBody<T>;
+    constructor(response: ResponseWithBody<T>, msg?: string) {
         let errorStr = '';
         let errIsSet = false;
-        if (response.isJson && response.data.error) {
-            if (!Array.isArray(response.data.error)) {
-                if (response.data.error.type) {
-                    errorStr += `(${response.data.error.type}): `;
-                    errIsSet = true;
-                }
-                if (response.data.error.code) {
-                    errorStr += `(${response.data.error.code}): `;
-                    errIsSet = true;
-                }
-                if (response.data.error.message) {
-                    errorStr += `${response.data.error.message}`;
-                    errIsSet = true;
-                }
-                if (typeof response.data.error === 'string') {
-                    errorStr += `${response.data.error}`;
-                    errIsSet = true;
+        if (response.isJson && response.data) {
+            const data = response.data as any;
+            if (data.error) {
+                if (!Array.isArray(data.error)) {
+                    if (data.error.type) {
+                        errorStr += `(${data.error.type}): `;
+                        errIsSet = true;
+                    }
+                    if (data.error.code) {
+                        errorStr += `(${data.error.code}): `;
+                        errIsSet = true;
+                    }
+                    if (data.error.message) {
+                        errorStr += `${data.error.message}`;
+                        errIsSet = true;
+                    }
+                    if (typeof data.error === 'string') {
+                        errorStr += `${data.error}`;
+                        errIsSet = true;
+                    }
                 }
             }
-        }
-        if (response.isJson && response.data.errorMessages) {
-            if (Array.isArray(response.data.errorMessages)) {
-                errorStr += `${response.data.errorMessages.join('; ')}`;
-                errIsSet = true;
+            if (data.errorMessages) {
+                if (Array.isArray(data.errorMessages)) {
+                    errorStr += `${data.errorMessages.join('; ')}`;
+                    errIsSet = true;
+                }
             }
         }
         if (!errIsSet) {
@@ -78,8 +129,8 @@ export function isRetryable(status: number) {
     return status === 429 || status >= 500;
 }
 
-export class RetryError extends HTTPResponseError {
-    constructor(response: ResponseWithBody) {
+export class RetryError<T = any> extends HTTPResponseError<T> {
+    constructor(response: ResponseWithBody<T>) {
         super(response, 'Retry Error: Ran out of retry attempts.');
         this.response = response;
     }
@@ -88,20 +139,29 @@ export class RetryError extends HTTPResponseError {
 export type ErrorCallback = (err: any) => boolean;
 export type RetryCallback = (err: any, attempt: number) => boolean | number;
 
+/**
+ * Configuration options for retry behavior.
+ */
 interface RetryOptions {
-    name?: string;
+    /** Number of retry attempts */
     attempts: number;
+    /** Initial delay between retries in milliseconds */
     initialIntervalMs: number;
+    /** Retry mode (e.g., exponential backoff, jitter) */
     mode?: RetryMode;
+    /** Factor to multiply the interval by for each retry */
     factor?: number;
+    /** Whether to attempt the first retry immediately */
     fastFirst?: boolean;
+    /** Maximum delay between retries in milliseconds */
     maxInterval?: number;
+    /** Amount of random jitter to add to retry delays */
     jitterAdjustment?: number;
+    /** Callback to determine if and when to retry */
     onRejection?: RetryCallback;
 }
 
 export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
-    name: 'node-fetch-retry',
     attempts: 2,
     initialIntervalMs: 500,
     mode: RetryMode.JITTER,
@@ -117,6 +177,8 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
             return error.remainingTimeInRatelimit;
         } else if (error instanceof TimeoutError) {
             return true;
+        } else if (error instanceof HumanReadableSchemaError) {
+            return false;
         }
 
         return true;
@@ -124,7 +186,6 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
 };
 
 export const DEFAULT_RATE_LIMIT_RETRY_OPTIONS: RetryOptions = {
-    name: 'node-fetch-rate-limit-retry',
     attempts: 1,
     initialIntervalMs: 500,
     onRejection: (error) => {
@@ -136,45 +197,67 @@ export const DEFAULT_RATE_LIMIT_RETRY_OPTIONS: RetryOptions = {
     },
 };
 
-// Timeout, Retry below is using https://genesys.github.io/mollitia/overview/introduction
-export interface RequestOptions {
-    logger?: AwsLambdaLogger;
+/**
+ * Configuration options for HTTP requests.
+ * @template Schema - The schema type for response validation. Must be a StandardSchemaV1 compatible schema (e.g., Zod schema)
+ */
+export interface RequestOptions<Schema extends StandardSchemaV1 = never> {
+    /** Custom logger for request logging */
+    logger?: LoggerInterface;
+    /** Timeout configuration */
     timeout?: {
-        name?: string;
+        /** Timeout duration in milliseconds */
         timeoutMs: number;
-        retry?: RetryOptions;
     };
+    /** Retry configuration */
     retry?: RetryOptions;
+    /** Schema for response validation. Must be a StandardSchemaV1 compatible schema (e.g., Zod schema) */
+    schema?: Schema;
 }
 
-const DEFAULTS: RequestOptions = {
+const DEFAULTS: RequestOptions<never> = {
     logger: contextLogger,
     retry: DEFAULT_RETRY_OPTIONS,
     timeout: {
-        name: 'node-fetch-timeout',
         timeoutMs: 10000,
     },
 };
 
 // RateLimit, CircuitBreaker below is using https://genesys.github.io/mollitia/overview/introduction
+/**
+ * Configuration options for fetch container features like rate limiting and circuit breaking.
+ */
 export interface FetchContainerOptions {
+    /** Rate limiting configuration */
     rateLimit?: {
-        name?: string;
+        /** Maximum number of requests allowed in the period */
         limitForPeriod: number;
+        /** Duration of the rate limit period in milliseconds */
         limitPeriodMs: number;
+        /** Retry configuration for rate limit handling */
         retry?: RetryOptions;
     };
+    /** Circuit breaker configuration */
     circuitBreaker?: {
-        name?: string;
-        state?: BreakerState; // Default: closed
-        failureRateThreshold?: number; // Default: 50 - Specifies the failure rate threshold in percentage
-        slowCallRateThreshold?: number; // Default: 100 - If at least 80% of the iterations are considered as being slow, the circuit is switched to Opened state.
-        slowCallDurationThresholdMs?: number; // Default: 60000 - Specifies the duration (in ms) threshold above which calls are considered as slow
-        permittedNumberOfCallsInHalfOpenState?: number; // Default: 2 - Specifies the number of permitted calls when the circuit is half open
-        halfOpenStateMaxDelayMs?: number; // Default: 0 - Specifies the maximum wait (in ms) in Half Open State, before switching back to open. 0 deactivates this
-        slidingWindowSize?: number; // Default: 10 - Specifies the maximum number of calls used to calculate failure and slow call rate percentages
-        minimumNumberOfCalls?: number; // Default: 10 -  Specifies the minimum number of calls used to calculate failure and slow call rate percentages
-        openStateDelayMs?: number; // Default: 60000 - Specifies the time (in ms) the circuit stay opened before switching to half-open
+        /** Current state of the circuit breaker */
+        state?: BreakerState;
+        /** Failure rate threshold as a percentage */
+        failureRateThreshold?: number;
+        /** Slow call rate threshold as a percentage */
+        slowCallRateThreshold?: number;
+        /** Duration threshold for slow calls in milliseconds */
+        slowCallDurationThresholdMs?: number;
+        /** Number of calls allowed in half-open state */
+        permittedNumberOfCallsInHalfOpenState?: number;
+        /** Maximum delay in half-open state in milliseconds */
+        halfOpenStateMaxDelayMs?: number;
+        /** Size of the sliding window for failure rate calculation */
+        slidingWindowSize?: number;
+        /** Minimum number of calls for failure rate calculation */
+        minimumNumberOfCalls?: number;
+        /** Time to stay in open state in milliseconds */
+        openStateDelayMs?: number;
+        /** Callback to determine if an error should trigger circuit breaker */
         onError?: ErrorCallback;
     };
 }
@@ -202,6 +285,25 @@ function mergeHeadersWithContext(headersInit?: HeadersInit): HeadersInit {
     return newHeadersInit;
 }
 
+function getHeadersObject(headers: Headers | Record<string, string> | undefined): Record<string, string> {
+    if (!headers) return {};
+    if (headers instanceof Headers) {
+        const result: Record<string, string> = {};
+        headers.forEach((value, key) => {
+            result[key] = value;
+        });
+        return result;
+    }
+    return headers;
+}
+
+function getRequestBody(body: any): string | undefined {
+    if (!body) return undefined;
+    if (typeof body === 'string') return body;
+    if (typeof body === 'object') return JSON.stringify(body);
+    return String(body);
+}
+
 function prepareDefaultInit(init?: RequestInit): RequestInit {
     const requestInit: RequestInit = {
         headers: {
@@ -215,18 +317,23 @@ function prepareDefaultInit(init?: RequestInit): RequestInit {
     return merge({}, init, requestInit);
 }
 
-function prepareDefaultOptions(options?: RequestOptions): RequestOptions {
+function prepareDefaultOptions<Schema extends StandardSchemaV1 = never>(options?: RequestOptions<Schema>): RequestOptions<Schema> {
     return merge({}, DEFAULTS, options);
 }
 
-function prepareCircuitModules(options: RequestOptions): Module[] {
+function generateRandomName(prefix: string): string {
+    return `${prefix}-${faker.color.human()}-${faker.animal.type()}`;
+}
+
+function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options: RequestOptions<Schema>): Module[] {
     const modules: Module[] = [];
+    const logger = options.logger || contextLogger;
 
     if (options.retry) {
         modules.push(
             new Retry({
-                name: options.retry.name || 'node-fetch-retry',
-                logger: options.logger,
+                name: generateRandomName('smooai-fetch-retry'),
+                logger: logger,
                 attempts: options.retry.attempts,
                 interval: options.retry.initialIntervalMs,
                 mode: options.retry.mode,
@@ -240,26 +347,11 @@ function prepareCircuitModules(options: RequestOptions): Module[] {
     if (options.timeout) {
         modules.push(
             new Timeout({
-                name: options.timeout.name || 'node-fetch-timeout',
-                logger: options.logger,
+                name: generateRandomName('smooai-fetch-timeout'),
+                logger: logger,
                 delay: options.timeout.timeoutMs,
             }),
         );
-
-        if (options.timeout.retry) {
-            modules.push(
-                new Retry({
-                    name: options.timeout.retry.name || 'node-fetch-timeout-retry',
-                    logger: options.logger,
-                    attempts: options.timeout.retry.attempts,
-                    interval: options.timeout.retry.initialIntervalMs,
-                    mode: options.timeout.retry.mode,
-                    factor: options.timeout.retry.factor,
-                    jitterAdjustment: options.timeout.retry.jitterAdjustment,
-                    onRejection: options.timeout.retry.onRejection,
-                }),
-            );
-        }
     }
 
     return modules;
@@ -267,14 +359,15 @@ function prepareCircuitModules(options: RequestOptions): Module[] {
 
 function prepareFetchContainerModules(options: RequestOptions, containerOptions?: FetchContainerOptions): Module[] {
     const modules: Module[] = [];
+    const logger = options.logger || contextLogger;
 
     if (containerOptions) {
         if (containerOptions.rateLimit) {
             const retryOptions = containerOptions.rateLimit.retry || DEFAULT_RATE_LIMIT_RETRY_OPTIONS;
             modules.push(
                 new Retry({
-                    name: `${containerOptions.rateLimit.name ?? 'node-fetch-rate-limit'}-retry`,
-                    logger: options.logger,
+                    name: generateRandomName('smooai-fetch-rate-limit-retry'),
+                    logger: logger,
                     attempts: retryOptions.attempts,
                     interval: retryOptions.initialIntervalMs,
                     mode: retryOptions.mode,
@@ -286,8 +379,8 @@ function prepareFetchContainerModules(options: RequestOptions, containerOptions?
 
             modules.push(
                 new Ratelimit({
-                    name: containerOptions.rateLimit.name || 'node-fetch-rate-limit',
-                    logger: options.logger,
+                    name: generateRandomName('smooai-fetch-rate-limit'),
+                    logger: logger,
                     limitPeriod: containerOptions.rateLimit.limitPeriodMs,
                     limitForPeriod: containerOptions.rateLimit.limitForPeriod,
                 }),
@@ -297,8 +390,8 @@ function prepareFetchContainerModules(options: RequestOptions, containerOptions?
         if (containerOptions.circuitBreaker) {
             modules.push(
                 new SlidingCountBreaker({
-                    name: containerOptions.circuitBreaker.name,
-                    logger: options.logger,
+                    name: generateRandomName('smooai-fetch-circuit-breaker'),
+                    logger: logger,
                     state: containerOptions.circuitBreaker.state,
                     failureRateThreshold: containerOptions.circuitBreaker.failureRateThreshold,
                     slowCallRateThreshold: containerOptions.circuitBreaker.slowCallRateThreshold,
@@ -317,54 +410,65 @@ function prepareFetchContainerModules(options: RequestOptions, containerOptions?
     return modules;
 }
 
-async function doGlobalFetch(url: RequestInfo, init?: RequestInit): Promise<Response> {
+async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
+    url: RequestInfo,
+    init?: RequestInit,
+    options?: RequestOptions<Schema>,
+): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
     const useInit: RequestInit = merge({}, init, { redirect: 'follow' });
+
+    // Stringify JSON body if needed
     if ((useInit?.headers as Record<string, string>)?.['Content-Type'] === 'application/json' && typeof useInit.body === 'object') {
         useInit.body = JSON.stringify(useInit.body);
     }
+
     const response = await global.fetch(url, useInit);
+    let isJson = false;
+    let data: (Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any) | undefined;
+    let dataString: string;
+
+    if (response.headers?.has('Content-Type') && response.headers?.get('Content-Type')?.includes('application/json')) {
+        dataString = await response.text();
+        try {
+            const parsedData = JSON.parse(dataString);
+            if (options?.schema) {
+                data = (await handleSchemaValidation(options.schema, parsedData)) as Schema extends StandardSchemaV1
+                    ? StandardSchemaV1.InferOutput<Schema>
+                    : any;
+            } else {
+                data = parsedData as Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any;
+            }
+            isJson = true;
+        } catch (error) {
+            if (error instanceof HumanReadableSchemaError) {
+                throw error;
+            }
+            isJson = false;
+        }
+    } else {
+        isJson = false;
+        dataString = await response.text();
+    }
+
+    const responseWithBody = {
+        ...response,
+        isJson,
+        data,
+        dataString,
+    };
 
     if (response.ok || response.redirected) {
-        // response.status >= 200 && response.status < 300
-        return response;
+        return responseWithBody;
     } else {
-        let isJson = false;
-        let data: any;
-        let dataString: string;
-        if (response.headers?.has('Content-Type') && response.headers?.get('Content-Type')?.includes('application/json')) {
-            data = await response.text();
-            try {
-                data = JSON.parse(data);
-                isJson = true;
-                dataString = JSON.stringify(data);
-            } catch (_error) {
-                isJson = false;
-                dataString = data;
-            }
-        } else {
-            isJson = false;
-            dataString = await response.text();
-        }
-        throw new HTTPResponseError(
-            merge(
-                {},
-                {
-                    isJson,
-                    data,
-                    dataString,
-                },
-                {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers,
-                    url: response.url,
-                },
-            ) as any,
-        );
+        throw new HTTPResponseError<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>(responseWithBody);
     }
 }
 
-async function doFetch(url: RequestInfo, init: RequestInit, options: RequestOptions): Promise<Response> {
+async function doFetch<Schema extends StandardSchemaV1 = never>(
+    url: RequestInfo,
+    init: RequestInit,
+    options: RequestOptions<Schema>,
+): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
     const circuit = new Circuit({
         name: 'node-fetch-circuit',
         func: doGlobalFetch,
@@ -372,30 +476,103 @@ async function doFetch(url: RequestInfo, init: RequestInit, options: RequestOpti
             modules: prepareCircuitModules(options),
         },
     });
-    options.logger!.debug(`Sending HTTP request "${init.method} ${url}"`);
-    let response: Response;
+    const logger = options.logger || contextLogger;
+    const urlObj = new URL(url.toString());
+    const headers = getHeadersObject(init.headers as Headers);
+    const requestBody = getRequestBody(init.body);
+
+    logger.debug(`Sending HTTP request "${init.method} ${url}"`, {
+        [ContextKey.Http]: {
+            [ContextKeyHttp.Request]: {
+                [ContextKeyHttpRequest.Method]: init.method,
+                [ContextKeyHttpRequest.Host]: urlObj.host,
+                [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                [ContextKeyHttpRequest.Headers]: headers,
+                [ContextKeyHttpRequest.Body]: requestBody,
+            },
+        },
+    });
+
+    let response: ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>;
     try {
-        response = await circuit.execute(url, init);
+        response = await circuit.execute(url, init, options);
     } catch (error) {
         if (error instanceof TimeoutError) {
-            options.logger!.error(error, `HTTP request "${init.method} ${url}" timed out (${error.name}) after ${options.timeout!.timeoutMs} ms`);
+            logger.error(error, `HTTP request "${init.method} ${url}" timed out (${error.name}) after ${options.timeout!.timeoutMs} ms`, {
+                [ContextKey.Http]: {
+                    [ContextKeyHttp.Request]: {
+                        [ContextKeyHttpRequest.Method]: init.method,
+                        [ContextKeyHttpRequest.Host]: urlObj.host,
+                        [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                        [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                        [ContextKeyHttpRequest.Headers]: headers,
+                        [ContextKeyHttpRequest.Body]: requestBody,
+                    },
+                },
+            });
         } else if (options.retry && error instanceof HTTPResponseError) {
             if (options.retry.onRejection && options.retry.onRejection(error, 1)) {
-                options.logger!.error(
-                    error,
-                    `HTTP request "${init.method} ${url}" retries failed (${options.retry.name}) after ${options.retry.attempts} retries`,
-                );
-                throw new RetryError(error.response);
+                logger.error(error, `HTTP request "${init.method} ${url}" retries failed after ${options.retry.attempts} retries`, {
+                    [ContextKey.Http]: {
+                        [ContextKeyHttp.Request]: {
+                            [ContextKeyHttpRequest.Method]: init.method,
+                            [ContextKeyHttpRequest.Host]: urlObj.host,
+                            [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                            [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                            [ContextKeyHttpRequest.Headers]: headers,
+                            [ContextKeyHttpRequest.Body]: requestBody,
+                        },
+                        [ContextKeyHttp.Response]: {
+                            [ContextKeyHttpResponse.StatusCode]: error.response.status,
+                            [ContextKeyHttpResponse.Headers]: getHeadersObject(error.response.headers),
+                            [ContextKeyHttpResponse.Body]: error.response.dataString,
+                        },
+                    },
+                });
+                throw new RetryError<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>(error.response);
             }
         }
         throw error;
     }
-    options.logger!.debug(`Received HTTP response "${init.method} ${url}": Response status "${response.status} ${response.statusText}"`);
+
+    logger.debug(`Received HTTP response "${init.method} ${url}": Response status "${response.status} ${response.statusText}"`, {
+        [ContextKey.Http]: {
+            [ContextKeyHttp.Request]: {
+                [ContextKeyHttpRequest.Method]: init.method,
+                [ContextKeyHttpRequest.Host]: urlObj.host,
+                [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                [ContextKeyHttpRequest.Headers]: headers,
+                [ContextKeyHttpRequest.Body]: requestBody,
+            },
+            [ContextKeyHttp.Response]: {
+                [ContextKeyHttpResponse.StatusCode]: response.status,
+                [ContextKeyHttpResponse.Headers]: getHeadersObject(response.headers),
+                [ContextKeyHttpResponse.Body]: response.dataString,
+            },
+        },
+    });
+
     return response;
 }
 
-export default async function fetch(url: RequestInfo, init?: RequestInit, options?: RequestOptions): Promise<Response> {
-    return doFetch(url, prepareDefaultInit(init), prepareDefaultOptions(options));
+// Overload signatures
+export default async function fetch(url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
+
+export default async function fetch<Schema extends StandardSchemaV1>(
+    url: RequestInfo,
+    init: RequestInit | undefined,
+    options: RequestOptions<Schema>,
+): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<Schema>>>;
+
+// Implementation
+export default async function fetch<Schema extends StandardSchemaV1 = never>(
+    url: RequestInfo,
+    init?: RequestInit,
+    options?: RequestOptions<Schema>,
+): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
+    return doFetch<Schema>(url, prepareDefaultInit(init), prepareDefaultOptions(options));
 }
 
 /**
@@ -422,11 +599,14 @@ export default async function fetch(url: RequestInfo, init?: RequestInit, option
  * @param options
  * @returns
  */
-export function generateFetchWithOptions(options: {
-    init?: RequestInit;
-    requestOptions?: RequestOptions;
-    containerOptions?: FetchContainerOptions;
-}): (url: RequestInfo, init?: RequestInit, options?: RequestOptions) => Promise<Response> {
+function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?: RequestOptions<never>; containerOptions?: FetchContainerOptions }): {
+    (url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
+    <Schema extends StandardSchemaV1>(
+        url: RequestInfo,
+        init: RequestInit | undefined,
+        options: RequestOptions<Schema>,
+    ): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<Schema>>>;
+} {
     const _init = prepareDefaultInit(options.init);
     const _requestOptions = prepareDefaultOptions(options.requestOptions);
     const circuit = new Circuit({
@@ -435,24 +615,263 @@ export function generateFetchWithOptions(options: {
             modules: prepareFetchContainerModules(_requestOptions, options.containerOptions),
         },
     });
-    return (url: RequestInfo, init?: RequestInit, requestOptions?: RequestOptions): Promise<Response> => {
+    return <Schema extends StandardSchemaV1 = never>(
+        url: RequestInfo,
+        init?: RequestInit,
+        requestOptions?: RequestOptions<Schema>,
+    ): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> => {
         circuit.fn(doFetch);
         const __init = prepareDefaultInit(merge({}, _init, init));
         const __requestOptions = prepareDefaultOptions(merge({}, _requestOptions, requestOptions));
+        const logger = __requestOptions.logger || contextLogger;
+        const urlObj = new URL(url.toString());
+        const headers = getHeadersObject(__init.headers as Headers);
+        const requestBody = getRequestBody(__init.body);
+
         try {
             return circuit.execute(url, prepareDefaultInit(__init), prepareDefaultOptions(__requestOptions));
         } catch (error) {
             if (error instanceof RatelimitError) {
-                __requestOptions.logger!.error(
+                logger.error(
                     error,
                     `HTTP request "${__init.method} ${url}" rate limited (${error.name}) - more than ${
                         options.containerOptions!.rateLimit?.limitForPeriod
                     } in ${options.containerOptions!.rateLimit?.limitPeriodMs} ms - ${error.remainingTimeInRatelimit} ms left in rate limit`,
+                    {
+                        [ContextKey.Http]: {
+                            [ContextKeyHttp.Request]: {
+                                [ContextKeyHttpRequest.Method]: __init.method,
+                                [ContextKeyHttpRequest.Host]: urlObj.host,
+                                [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                                [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                                [ContextKeyHttpRequest.Headers]: headers,
+                                [ContextKeyHttpRequest.Body]: requestBody,
+                            },
+                        },
+                    },
                 );
             } else if (error instanceof BreakerError) {
-                __requestOptions.logger!.error(error, `HTTP request "${__init.method} ${url}" circuit open (${error.name})`);
+                logger.error(error, `HTTP request "${__init.method} ${url}" circuit open (${error.name})`, {
+                    [ContextKey.Http]: {
+                        [ContextKeyHttp.Request]: {
+                            [ContextKeyHttpRequest.Method]: __init.method,
+                            [ContextKeyHttpRequest.Host]: urlObj.host,
+                            [ContextKeyHttpRequest.Path]: urlObj.pathname,
+                            [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                            [ContextKeyHttpRequest.Headers]: headers,
+                            [ContextKeyHttpRequest.Body]: requestBody,
+                        },
+                    },
+                });
             }
             throw error;
         }
     };
 }
+
+/**
+ * Builder class for creating configured fetch instances with retry, rate limiting, and circuit breaking.
+ * Provides a fluent interface for configuring fetch options.
+ * @template Schema - The schema type for response validation. Must be a StandardSchemaV1 compatible schema (e.g., Zod schema)
+ */
+export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
+    private _init?: RequestInit;
+    private _requestOptions?: RequestOptions<Schema>;
+    private _containerOptions?: FetchContainerOptions;
+
+    /**
+     * Sets the initial request configuration.
+     * @param init - The initial request configuration
+     * @returns The builder instance for method chaining
+     */
+    withInit(init: RequestInit): FetchBuilder<Schema> {
+        this._init = init;
+        return this;
+    }
+
+    /**
+     * Sets the request timeout.
+     * @param timeoutMs - Timeout duration in milliseconds
+     * @returns The builder instance for method chaining
+     */
+    withTimeout(timeoutMs: number): FetchBuilder<Schema> {
+        this._requestOptions = {
+            ...this._requestOptions,
+            timeout: { timeoutMs },
+        };
+        return this;
+    }
+
+    /**
+     * Configures retry behavior for failed requests.
+     * If not specified, uses DEFAULT_RETRY_OPTIONS.
+     * @param options - Retry configuration options
+     * @returns The builder instance for method chaining
+     */
+    withRetry(options: RetryOptions = DEFAULT_RETRY_OPTIONS): FetchBuilder<Schema> {
+        this._requestOptions = {
+            ...this._requestOptions,
+            retry: options,
+        };
+        return this;
+    }
+
+    /**
+     * Configures rate limiting for requests.
+     * If retryOptions is not specified, uses DEFAULT_RATE_LIMIT_RETRY_OPTIONS.
+     * @param limitForPeriod - Maximum number of requests allowed in the period
+     * @param limitPeriodMs - Duration of the rate limit period in milliseconds
+     * @param retryOptions - Optional retry configuration for rate limit handling
+     * @returns The builder instance for method chaining
+     */
+    withRateLimit(limitForPeriod: number, limitPeriodMs: number, retryOptions: RetryOptions = DEFAULT_RATE_LIMIT_RETRY_OPTIONS): FetchBuilder<Schema> {
+        this._containerOptions = {
+            ...this._containerOptions,
+            rateLimit: {
+                limitForPeriod,
+                limitPeriodMs,
+                retry: retryOptions,
+            },
+        };
+        return this;
+    }
+
+    /**
+     * Configures circuit breaker behavior.
+     *
+     * Note: This is not typically used, but can be useful for advanced use cases.
+     *
+     * @param options - Circuit breaker configuration options
+     * @returns The builder instance for method chaining
+     */
+    withCircuitBreaker(options: FetchContainerOptions['circuitBreaker']): FetchBuilder<Schema> {
+        this._containerOptions = {
+            ...this._containerOptions,
+            circuitBreaker: options,
+        };
+        return this;
+    }
+
+    /**
+     * Sets container options directly.
+     *
+     * Note: This is not typically used, but can be useful for advanced use cases.
+     *
+     * @param options - Container configuration options
+     * @returns The builder instance for method chaining
+     */
+    withContainerOptions(options: FetchContainerOptions): FetchBuilder<Schema> {
+        this._containerOptions = {
+            ...this._containerOptions,
+            ...options,
+        };
+        return this;
+    }
+
+    /**
+     * Sets a custom logger for request logging.
+     * If not specified, uses the default contextLogger.
+     * @param logger - The logger instance to use
+     * @returns The builder instance for method chaining
+     */
+    withLogger(logger: LoggerInterface = contextLogger): FetchBuilder<Schema> {
+        this._requestOptions = {
+            ...this._requestOptions,
+            logger,
+        };
+        return this;
+    }
+
+    /**
+     * Sets a schema for response validation.
+     * The schema must be StandardSchemaV1 compatible (e.g., a Zod schema).
+     * The response body will be validated against this schema before being returned.
+     *
+     * @example
+     * ```typescript
+     * const schema = z.object({
+     *   id: z.string(),
+     *   name: z.string()
+     * });
+     *
+     * const fetch = new FetchBuilder()
+     *   .withSchema(schema)
+     *   .build();
+     * ```
+     *
+     * @param schema - The StandardSchemaV1 compatible schema to use for validation
+     * @returns The builder instance for method chaining
+     */
+    withSchema(schema: Schema): FetchBuilder<Schema> {
+        this._requestOptions = {
+            ...this._requestOptions,
+            schema,
+        };
+        return this;
+    }
+
+    /**
+     * Builds and returns a configured fetch function.
+     * Applies default options for any unset configurations.
+     * @returns A configured fetch function with the specified options
+     */
+    build(): {
+        (url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
+        <T extends StandardSchemaV1>(
+            url: RequestInfo,
+            init: RequestInit | undefined,
+            options: RequestOptions<T>,
+        ): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<T>>>;
+    } {
+        // Apply defaults for request options
+        const requestOptions = {
+            ...DEFAULTS,
+            ...this._requestOptions,
+        };
+
+        // Apply defaults for container options if rate limit is set
+        const containerOptions = this._containerOptions?.rateLimit
+            ? {
+                  ...this._containerOptions,
+                  rateLimit: {
+                      ...this._containerOptions.rateLimit,
+                      retry: this._containerOptions.rateLimit.retry || DEFAULT_RATE_LIMIT_RETRY_OPTIONS,
+                  },
+              }
+            : this._containerOptions;
+
+        return generateFetchWithOptions({
+            init: this._init,
+            requestOptions: requestOptions as RequestOptions<never>,
+            containerOptions,
+        });
+    }
+}
+
+// Example usage:
+/*
+const fetch = new FetchBuilder()
+    .withTimeout(60 * 1000)
+    .withRetry(DEFAULT_RETRY_OPTIONS)
+    .withRateLimit(2, 62 * 1000, DEFAULT_RATE_LIMIT_RETRY_OPTIONS)
+    .withLogger(logger)
+    .build();
+
+// Or using withContainerOptions:
+const fetch = new FetchBuilder()
+    .withTimeout(60 * 1000)
+    .withRetry(DEFAULT_RETRY_OPTIONS)
+    .withContainerOptions({
+        rateLimit: {
+            limitForPeriod: 2,
+            limitPeriodMs: 62 * 1000,
+            retry: DEFAULT_RATE_LIMIT_RETRY_OPTIONS,
+        },
+        circuitBreaker: {
+            failureRateThreshold: 50,
+            slowCallDurationThresholdMs: 60000,
+        }
+    })
+    .withLogger(logger)
+    .build();
+*/
