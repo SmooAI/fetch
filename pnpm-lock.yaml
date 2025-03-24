@@ -9,12 +9,21 @@ importers:
 
   .:
     dependencies:
+      '@faker-js/faker':
+        specifier: ^9.6.0
+        version: 9.6.0
       '@smooai/logger':
-        specifier: ^1.0.18
-        version: 1.0.18
+        specifier: ^1.0.20
+        version: 1.0.20
       '@smooai/utils':
-        specifier: ^1.0.18
-        version: 1.0.18(@types/node@22.13.10)(typescript@5.8.2)
+        specifier: ^1.0.19
+        version: 1.0.19(@types/node@22.13.10)(typescript@5.8.2)
+      '@standard-schema/spec':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@standard-schema/utils':
+        specifier: ^0.3.0
+        version: 0.3.0
       lodash.merge:
         specifier: ^4.6.2
         version: 4.6.2
@@ -70,6 +79,9 @@ importers:
       vitest:
         specifier: ^3.0.7
         version: 3.0.8(@types/node@22.13.10)
+      zod:
+        specifier: ^3.24.2
+        version: 3.24.2
 
 packages:
 
@@ -655,6 +667,10 @@ packages:
     resolution: {integrity: sha512-JubJ5B2pJ4k4yGxaNLdbjrnk9d/iDz6/q8wOilpIowd6PJPgaxCuHBnBszq7Ce2TyMrywm5r4PnKm6V3iiZF+g==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@faker-js/faker@9.6.0':
+    resolution: {integrity: sha512-3vm4by+B5lvsFPSyep3ELWmZfE3kicDtmemVpuwl1yH7tqtnHdsA6hG8fbXedMVdkzgtvzWoRgjSB4Q+FHnZiw==}
+    engines: {node: '>=18.0.0', npm: '>=9.0.0'}
+
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
     engines: {node: '>=18.18.0'}
@@ -1060,14 +1076,20 @@ packages:
     peerDependencies:
       typescript: ^5.8.2
 
-  '@smooai/logger@1.0.18':
-    resolution: {integrity: sha512-hbCs81K8VAZimEcRaxqym5JjdTgx51FAdBY7M+2FX60D7lfP9Yhlr0ca/yky6ayDr6Yl+BtblOs6aH5WATlVyQ==}
+  '@smooai/logger@1.0.20':
+    resolution: {integrity: sha512-EC+mdIEsVgor8d8pOPKMXSmOdd5Z+7cUt3fC4lhiWulzAruQKoXzp22nGOltfssKqauQuR1oOFu91xX2bAC/rQ==}
     engines: {node: '>=20.0.0'}
 
-  '@smooai/utils@1.0.18':
-    resolution: {integrity: sha512-VTTHIHJoIzzQ6K9TpGZvYv2qwh8Tlya0B3Hx6b4pGD3BUSfqr0MCba6C9oCvXjZ6eQcOA5KfpVkXl5DevvnOPg==}
+  '@smooai/utils@1.0.19':
+    resolution: {integrity: sha512-TCT9b8AnEvU/Kc4b3pPJqmBtlodl8/N/ZUUP348OLOcbHGXrw0iCy+QLXdfYDIgXKG1bn1xDMILTA7Oo1/SAsw==}
     engines: {node: '>=20.0.0'}
     hasBin: true
+
+  '@standard-schema/spec@1.0.0':
+    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
+
+  '@standard-schema/utils@0.3.0':
+    resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
   '@tsconfig/node10@1.0.11':
     resolution: {integrity: sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==}
@@ -4525,6 +4547,8 @@ snapshots:
       '@eslint/core': 0.12.0
       levn: 0.4.1
 
+  '@faker-js/faker@9.6.0': {}
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.6':
@@ -5055,7 +5079,7 @@ snapshots:
     dependencies:
       typescript: 5.8.2
 
-  '@smooai/logger@1.0.18':
+  '@smooai/logger@1.0.20':
     dependencies:
       '@aws-sdk/client-sqs': 3.772.0
       '@opentelemetry/api': 1.9.0
@@ -5070,12 +5094,14 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@smooai/utils@1.0.18(@types/node@22.13.10)(typescript@5.8.2)':
+  '@smooai/utils@1.0.19(@types/node@22.13.10)(typescript@5.8.2)':
     dependencies:
       '@oclif/core': 2.16.0(@types/node@22.13.10)(typescript@5.8.2)
       '@oclif/plugin-help': 6.2.27
       '@oclif/plugin-plugins': 5.4.36
-      '@smooai/logger': 1.0.18
+      '@smooai/logger': 1.0.20
+      '@standard-schema/spec': 1.0.0
+      '@standard-schema/utils': 0.3.0
       find-up: 7.0.0
       hono: 4.7.5
       http-status-codes: 2.3.0
@@ -5089,6 +5115,10 @@ snapshots:
       - aws-crt
       - supports-color
       - typescript
+
+  '@standard-schema/spec@1.0.0': {}
+
+  '@standard-schema/utils@0.3.0': {}
 
   '@tsconfig/node10@1.0.11': {}
 
