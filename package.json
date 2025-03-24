@@ -1,6 +1,6 @@
 {
     "name": "@smooai/fetch",
-    "version": "1.0.7",
+    "version": "1.1.0",
     "description": "A powerful HTTP client (fetch) library with built-in support for retries, timeouts, rate limiting, and circuit breaking. Designed for both Node.js and browser environments, with seamless integration with AWS Lambda and structured logging.",
     "homepage": "https://github.com/SmooAI/fetch#readme",
     "bugs": {
