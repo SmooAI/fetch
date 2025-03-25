@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
 import { TimeoutError } from 'mollitia';
 import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
-import fetch, { FetchBuilder, HTTPResponseError, RequestInfo, Response, RetryError, DEFAULT_RATE_LIMIT_RETRY_OPTIONS } from './fetch';
+import fetch, { FetchBuilder, HTTPResponseError, RequestInfo, Response, RetryError, DEFAULT_RATE_LIMIT_RETRY_OPTIONS, RequestInitWithOptions } from './fetch';
 import { ContextHeader } from '@smooai/logger/AwsLambdaLogger';
 import sleep from '@smooai/utils/utils/sleep';
 import { z } from 'zod';
@@ -423,13 +423,9 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -451,13 +447,9 @@ describe('Test fetch', () => {
 
             let error: Error | undefined;
             try {
-                await fetchWithSchema(
-                    URL,
-                    {
-                        method: 'GET',
-                    },
-                    { schema },
-                );
+                await fetchWithSchema(URL, {
+                    method: 'GET',
+                });
                 throw new Error('Expected schema validation to fail');
             } catch (caughtError) {
                 error = caughtError as Error;
@@ -488,13 +480,9 @@ describe('Test fetch', () => {
 
             let error: Error | undefined;
             try {
-                await fetchWithSchema(
-                    URL,
-                    {
-                        method: 'GET',
-                    },
-                    { schema },
-                );
+                await fetchWithSchema(URL, {
+                    method: 'GET',
+                });
                 throw new Error('Expected schema validation to fail');
             } catch (caughtError) {
                 error = caughtError as Error;
@@ -536,13 +524,9 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -573,13 +557,9 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -598,13 +578,9 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -637,13 +613,9 @@ describe('Test fetch', () => {
                 })
                 .build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -679,13 +651,9 @@ describe('Test fetch', () => {
                 })
                 .build();
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -726,14 +694,10 @@ describe('Test fetch', () => {
                 'X-Environment': 'test',
             };
 
-            const response = await fetchWithSchema(
-                URL,
-                {
-                    method: 'GET',
-                    headers: requestHeaders,
-                },
-                { schema },
-            );
+            const response = await fetchWithSchema(URL, {
+                method: 'GET',
+                headers: requestHeaders,
+            });
 
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
@@ -748,6 +712,228 @@ describe('Test fetch', () => {
             expect(sentHeaders['X-Environment']).toBe('test');
             // Verify context headers are still present
             expect(sentHeaders[ContextHeader.CorrelationId]).toBeDefined();
+        });
+    });
+
+    describe('Test fetch with different init options', () => {
+        test('Test fetch with body and content type', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const requestBody = { key: 'value' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const response = await fetch(URL, {
+                method: 'POST',
+                body: JSON.stringify(requestBody),
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.body).toBe(JSON.stringify(requestBody));
+            expect(mockFetch.mock.calls[0][1]?.headers).toBeDefined();
+            const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(headers['Content-Type']).toBe('application/json');
+        });
+
+        test('Test fetch with credentials', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.credentials).toBe('include');
+        });
+
+        test('Test fetch with mode', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                mode: 'cors',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.mode).toBe('cors');
+        });
+
+        test('Test fetch with redirect', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                redirect: 'follow',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.redirect).toBe('follow');
+        });
+
+        test('Test fetch with referrer', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                referrer: 'https://example.com',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.referrer).toBe('https://example.com');
+        });
+
+        test('Test fetch with signal', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const controller = new AbortController();
+            const response = await fetch(URL, {
+                method: 'GET',
+                signal: controller.signal,
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            expect(mockFetch.mock.calls[0][1]?.signal).toBe(controller.signal);
+        });
+
+        test('Test fetch with multiple init options combined', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const requestBody = { key: 'value' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            const controller = new AbortController();
+            const response = await fetch(URL, {
+                method: 'POST',
+                body: JSON.stringify(requestBody),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Custom-Header': 'custom-value',
+                },
+                credentials: 'include',
+                mode: 'cors',
+                redirect: 'follow',
+                referrer: 'https://example.com',
+                signal: controller.signal,
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            const init = mockFetch.mock.calls[0][1];
+            expect(init?.body).toBe(JSON.stringify(requestBody));
+            expect(init?.headers).toBeDefined();
+            const headers = init?.headers as Record<string, string>;
+            expect(headers['Content-Type']).toBe('application/json');
+            expect(headers['X-Custom-Header']).toBe('custom-value');
+            expect(init?.credentials).toBe('include');
+            expect(init?.mode).toBe('cors');
+            expect(init?.redirect).toBe('follow');
+            expect(init?.referrer).toBe('https://example.com');
+            expect(init?.signal).toBe(controller.signal);
+        });
+    });
+
+    describe('Test fetch with init.options settings', () => {
+        test('Test fetch with timeout option', async () => {
+            vi.useFakeTimers();
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInitWithOptions) => Promise<Response>>;
+            mockFetch.mockImplementationOnce(async () => {
+                await vi.advanceTimersByTimeAsync(6000);
+                return fakeResponse(true, 200);
+            });
+            mockFetch.mockImplementationOnce(async () => {
+                return fakeResponse(true, 200);
+            });
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                options: {
+                    timeout: { timeoutMs: 5000 },
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+
+            // Verify the timeout was respected
+            expect(mockFetch).toBeCalledTimes(2);
+        });
+
+        test('Test fetch with schema option', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInitWithOptions) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                options: {
+                    schema,
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+            expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+
+        test('Test fetch with multiple options combined', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInitWithOptions) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockImplementationOnce(async () => {
+                await vi.advanceTimersByTimeAsync(7000);
+                return fakeResponse(true, 200, mockData);
+            });
+            mockFetch.mockImplementationOnce(async () => {
+                return fakeResponse(true, 200, mockData);
+            });
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const retryOptions = {
+                attempts: 3,
+                initialIntervalMs: 50,
+            };
+
+            const response = await fetch(URL, {
+                method: 'GET',
+                options: {
+                    timeout: { timeoutMs: 5000 },
+                    schema,
+                    retry: retryOptions,
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+            expect(schema.safeParse(response.data).success).toBeTruthy();
         });
     });
 });

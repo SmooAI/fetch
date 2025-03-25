@@ -8,6 +8,49 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 export { RatelimitError, TimeoutError } from 'mollitia';
 export * from 'mollitia';
 
+declare global {
+    interface Window {
+        fetch: typeof fetch;
+    }
+    interface Self {
+        fetch: typeof fetch;
+    }
+    // Add declarations for window and self globals
+    const window: Window & typeof globalThis;
+    const self: Self & typeof globalThis;
+}
+
+/**
+ * Determine the appropriate fetch implementation based on the environment.
+ * Uses global.fetch in Node.js environments and window.fetch in browser environments.
+ */
+const globalFetch = (): typeof global.fetch => {
+    // Browser environment
+    if (typeof window !== 'undefined' && window.fetch) {
+        return window.fetch.bind(window);
+    }
+
+    // Web Worker environment
+    if (typeof self !== 'undefined' && self.fetch) {
+        return self.fetch.bind(self);
+    }
+
+    // Node.js environment
+    if (typeof global !== 'undefined') {
+        // Modern Node.js (v18+) with built-in fetch
+        if (global.fetch) {
+            return global.fetch.bind(global);
+        }
+
+        // For older Node.js versions, suggest installing node-fetch
+        throw new Error(
+            'No fetch implementation found in Node.js environment. ' + 'For Node.js versions < 18, please install node-fetch: npm install node-fetch',
+        );
+    }
+
+    throw new Error('No fetch implementation found. ' + 'Please ensure fetch is available in your environment.');
+};
+
 /**
  * Interface for browser-compatible logging functionality.
  * Provides methods for different log levels with context support.
@@ -68,6 +111,8 @@ type Request = globalThis.Request;
 type Response = globalThis.Response;
 
 export type { Headers, RequestInit, Request, Response };
+
+type ResponseType<Schema extends StandardSchemaV1 = never> = Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any;
 
 /**
  * Defaults set below:
@@ -414,7 +459,7 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     url: RequestInfo,
     init?: RequestInit,
     options?: RequestOptions<Schema>,
-): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
+): Promise<ResponseWithBody<ResponseType<Schema>>> {
     const useInit: RequestInit = merge({}, init, { redirect: 'follow' });
 
     // Stringify JSON body if needed
@@ -422,9 +467,9 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
         useInit.body = JSON.stringify(useInit.body);
     }
 
-    const response = await global.fetch(url, useInit);
+    const response = await globalFetch()(url, useInit);
     let isJson = false;
-    let data: (Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any) | undefined;
+    let data: ResponseType<Schema> | undefined;
     let dataString: string;
 
     if (response.headers?.has('Content-Type') && response.headers?.get('Content-Type')?.includes('application/json')) {
@@ -436,7 +481,7 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
                     ? StandardSchemaV1.InferOutput<Schema>
                     : any;
             } else {
-                data = parsedData as Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any;
+                data = parsedData as ResponseType<Schema>;
             }
             isJson = true;
         } catch (error) {
@@ -460,7 +505,7 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     if (response.ok || response.redirected) {
         return responseWithBody;
     } else {
-        throw new HTTPResponseError<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>(responseWithBody);
+        throw new HTTPResponseError<ResponseType<Schema>>(responseWithBody);
     }
 }
 
@@ -468,7 +513,7 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
     url: RequestInfo,
     init: RequestInit,
     options: RequestOptions<Schema>,
-): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
+): Promise<ResponseWithBody<ResponseType<Schema>>> {
     const circuit = new Circuit({
         name: 'node-fetch-circuit',
         func: doGlobalFetch,
@@ -494,7 +539,7 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
         },
     });
 
-    let response: ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>;
+    let response: ResponseWithBody<ResponseType<Schema>>;
     try {
         response = await circuit.execute(url, init, options);
     } catch (error) {
@@ -530,7 +575,7 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
                         },
                     },
                 });
-                throw new RetryError<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>(error.response);
+                throw new RetryError<ResponseType<Schema>>(error.response);
             }
         }
         throw error;
@@ -557,22 +602,25 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
     return response;
 }
 
+export type RequestInitWithOptions<Schema extends StandardSchemaV1 = never> = RequestInit & {
+    options?: RequestOptions<Schema>;
+};
+
 // Overload signatures
-export default async function fetch(url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
+export default async function fetch(url: RequestInfo, init?: RequestInitWithOptions<never>): Promise<ResponseWithBody<any>>;
 
 export default async function fetch<Schema extends StandardSchemaV1>(
     url: RequestInfo,
-    init: RequestInit | undefined,
-    options: RequestOptions<Schema>,
-): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<Schema>>>;
+    init?: RequestInitWithOptions<Schema>,
+): Promise<ResponseWithBody<ResponseType<Schema>>>;
 
 // Implementation
 export default async function fetch<Schema extends StandardSchemaV1 = never>(
     url: RequestInfo,
-    init?: RequestInit,
-    options?: RequestOptions<Schema>,
-): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> {
-    return doFetch<Schema>(url, prepareDefaultInit(init), prepareDefaultOptions(options));
+    init?: RequestInitWithOptions<Schema>,
+): Promise<ResponseWithBody<ResponseType<Schema>>> {
+    const { options, ...requestInit } = init || {};
+    return doFetch<Schema>(url, prepareDefaultInit(requestInit), prepareDefaultOptions(options));
 }
 
 /**
@@ -600,12 +648,8 @@ export default async function fetch<Schema extends StandardSchemaV1 = never>(
  * @returns
  */
 function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?: RequestOptions<never>; containerOptions?: FetchContainerOptions }): {
-    (url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
-    <Schema extends StandardSchemaV1>(
-        url: RequestInfo,
-        init: RequestInit | undefined,
-        options: RequestOptions<Schema>,
-    ): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<Schema>>>;
+    (url: RequestInfo, init?: RequestInitWithOptions<never>): Promise<ResponseWithBody<any>>;
+    <Schema extends StandardSchemaV1>(url: RequestInfo, init?: RequestInitWithOptions<Schema>): Promise<ResponseWithBody<ResponseType<Schema>>>;
 } {
     const _init = prepareDefaultInit(options.init);
     const _requestOptions = prepareDefaultOptions(options.requestOptions);
@@ -617,11 +661,11 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
     });
     return <Schema extends StandardSchemaV1 = never>(
         url: RequestInfo,
-        init?: RequestInit,
-        requestOptions?: RequestOptions<Schema>,
-    ): Promise<ResponseWithBody<Schema extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Schema> : any>> => {
+        init?: RequestInitWithOptions<Schema>,
+    ): Promise<ResponseWithBody<ResponseType<Schema>>> => {
         circuit.fn(doFetch);
-        const __init = prepareDefaultInit(merge({}, _init, init));
+        const { options: requestOptions, ...requestInit } = init || {};
+        const __init = prepareDefaultInit(merge({}, _init, requestInit));
         const __requestOptions = prepareDefaultOptions(merge({}, _requestOptions, requestOptions));
         const logger = __requestOptions.logger || contextLogger;
         const urlObj = new URL(url.toString());
@@ -816,12 +860,8 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
      * @returns A configured fetch function with the specified options
      */
     build(): {
-        (url: RequestInfo, init?: RequestInit, options?: RequestOptions<never>): Promise<ResponseWithBody<any>>;
-        <T extends StandardSchemaV1>(
-            url: RequestInfo,
-            init: RequestInit | undefined,
-            options: RequestOptions<T>,
-        ): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<T>>>;
+        (url: RequestInfo, init?: RequestInitWithOptions<never>): Promise<ResponseWithBody<any>>;
+        <T extends StandardSchemaV1>(url: RequestInfo, init?: RequestInitWithOptions<T>): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<T>>>;
     } {
         // Apply defaults for request options
         const requestOptions = {

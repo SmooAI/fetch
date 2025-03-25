@@ -67,6 +67,35 @@ pnpm add @smooai/fetch
 - Automatic JSON parsing and stringifying
 - Structured error handling with detailed response information
 
+#### ⚙️ Opinionated Defaults
+
+The default export `fetch` comes with carefully chosen defaults for common use cases:
+
+- **Retry Configuration**
+
+    - 2 retry attempts
+    - 500ms initial interval with jitter
+    - Exponential backoff with factor of 2
+    - 0.5 jitter adjustment
+    - Smart retry decisions based on:
+        - HTTP 5xx errors
+        - Rate limit responses (429)
+        - Timeout errors
+        - Retry-After header support
+
+- **Timeout Settings**
+
+    - 10 second timeout for all requests
+    - Automatic timeout error handling
+
+- **Rate Limit Retry**
+    - 1 retry attempt for rate limit errors
+    - 500ms initial interval
+    - Smart handling of rate limit headers
+    - 50ms buffer added to retry timing
+
+These defaults are designed to handle common API integration scenarios while providing a good balance between reliability and performance. They can be overridden using the `FetchBuilder` pattern or by passing custom options to the default `fetch` function.
+
 #### ✅ Schema Validation
 
 - Built-in support for [Standard Schema](https://github.com/standard-schema/standard-schema) compatible validators
@@ -130,7 +159,7 @@ import fetch from '@smooai/fetch';
 // Simple GET request
 const response = await fetch('https://api.example.com/data');
 
-// POST request with JSON body
+// POST request with JSON body and options
 const response = await fetch('https://api.example.com/data', {
     method: 'POST',
     headers: {
@@ -138,6 +167,14 @@ const response = await fetch('https://api.example.com/data', {
     },
     body: {
         key: 'value',
+    },
+    options: {
+        timeout: {
+            timeoutMs: 5000,
+        },
+        retry: {
+            attempts: 3,
+        },
     },
 });
 ```
@@ -183,6 +220,27 @@ const response = await fetch('https://api.example.com/users/123');
 ```typescript
 import { FetchBuilder, RetryMode } from '@smooai/fetch';
 
+// Using the default fetch
+const response = await fetch('https://api.example.com/data', {
+    options: {
+        retry: {
+            attempts: 3,
+            initialIntervalMs: 1000,
+            mode: RetryMode.JITTER,
+            factor: 2,
+            jitterAdjustment: 0.5,
+            onRejection: (error) => {
+                // Custom retry logic
+                if (error instanceof HTTPResponseError) {
+                    return error.response.status >= 500;
+                }
+                return false;
+            },
+        },
+    },
+});
+
+// Or using FetchBuilder
 const fetch = new FetchBuilder()
     .withRetry({
         attempts: 3,
@@ -191,7 +249,6 @@ const fetch = new FetchBuilder()
         factor: 2,
         jitterAdjustment: 0.5,
         onRejection: (error) => {
-            // Custom retry logic
             if (error instanceof HTTPResponseError) {
                 return error.response.status >= 500;
             }
@@ -208,6 +265,16 @@ const fetch = new FetchBuilder()
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 
+// Using the default fetch
+const response = await fetch('https://api.example.com/slow-endpoint', {
+    options: {
+        timeout: {
+            timeoutMs: 5000,
+        },
+    },
+});
+
+// Or using FetchBuilder
 const fetch = new FetchBuilder()
     .withTimeout(5000) // 5 second timeout
     .build();
@@ -228,6 +295,23 @@ try {
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 
+// Using the default fetch
+const response = await fetch('https://api.example.com/data', {
+    options: {
+        retry: {
+            attempts: 1,
+            initialIntervalMs: 1000,
+            onRejection: (error) => {
+                if (error instanceof RatelimitError) {
+                    return error.remainingTimeInRatelimit;
+                }
+                return false;
+            },
+        },
+    },
+});
+
+// Or using FetchBuilder
 const fetch = new FetchBuilder()
     .withRateLimit(100, 60000, {
         attempts: 1,
@@ -237,28 +321,6 @@ const fetch = new FetchBuilder()
                 return error.remainingTimeInRatelimit;
             }
             return false;
-        },
-    })
-    .build();
-```
-
-<p align="right">(<a href="#examples">back to examples</a>)</p>
-
-#### Circuit Breaker Example <a name="circuit-breaker-example"></a>
-
-```typescript
-import { FetchBuilder } from '@smooai/fetch';
-
-const fetch = new FetchBuilder()
-    .withCircuitBreaker({
-        failureRateThreshold: 50,
-        slowCallRateThreshold: 80,
-        slowCallDurationThresholdMs: 5000,
-        slidingWindowSize: 10,
-        minimumNumberOfCalls: 5,
-        openStateDelayMs: 60000,
-        onError: (error) => {
-            return error instanceof HTTPResponseError && error.response.status >= 500;
         },
     })
     .build();
@@ -279,7 +341,14 @@ const UserSchema = z.object({
     email: z.string().email(),
 });
 
-// Create a fetch instance with schema validation
+// Using the default fetch
+const response = await fetch('https://api.example.com/users/123', {
+    options: {
+        schema: UserSchema,
+    },
+});
+
+// Or using FetchBuilder
 const fetch = new FetchBuilder().withSchema(UserSchema).build();
 
 try {
@@ -309,7 +378,19 @@ const UserSchema = z.object({
     email: z.string().email(),
 });
 
-// Create a fetch instance with predefined auth headers
+// Using the default fetch
+const response = await fetch('https://api.example.com/users/123', {
+    headers: {
+        Authorization: 'Bearer your-auth-token',
+        'X-API-Key': 'your-api-key',
+        'X-Client-ID': 'your-client-id',
+    },
+    options: {
+        schema: UserSchema,
+    },
+});
+
+// Or using FetchBuilder
 const fetch = new FetchBuilder()
     .withSchema(UserSchema)
     .withInit({
