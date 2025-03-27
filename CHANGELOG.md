@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.2.1
+
+### Patch Changes
+
+- 081e6ff: Fix package description.
+
 ## 1.2.0
 
 ### Minor Changes
