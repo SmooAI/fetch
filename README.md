@@ -103,6 +103,37 @@ These defaults are designed to handle common API integration scenarios while pro
 - Type-safe response validation
 - Human-readable validation errors
 
+#### 🔄 Lifecycle Hooks
+
+- **Pre-request Hook**
+
+    - Modify URL and request configuration before sending
+    - Add custom headers, query parameters, or transform request body
+    - Full access to modify both URL and request init
+
+- **Post-response Success Hook**
+
+    - Transform successful responses after schema validation
+    - Add metadata or transform response data
+    - Read-only access to original request details
+
+- **Post-response Error Hook**
+
+    - Handle or transform errors before they're thrown
+    - Create detailed error messages with request context
+    - Read-only access to original request details
+
+- **Type Safety**
+
+    - Fully typed with TypeScript
+    - Non-editable parameters marked as readonly
+    - Schema types preserved throughout lifecycle
+
+- **Integration**
+    - Works seamlessly with schema validation
+    - Compatible with retry, rate limiting, and circuit breaking
+    - Preserves request/response context
+
 #### 🛡️ Resilience Features
 
 - **Retry Mechanism**
@@ -360,6 +391,82 @@ try {
         // Example output:
         // Validation failed: Invalid email format at path: email
     }
+}
+```
+
+<p align="right">(<a href="#examples">back to examples</a>)</p>
+
+#### Lifecycle Hooks Example
+
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
+import { z } from 'zod';
+
+// Define response schema
+const UserSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+});
+
+// Create a fetch instance with hooks
+const fetch = new FetchBuilder()
+    .withSchema(UserSchema)
+    .withHooks({
+        // Pre-request hook can modify both URL and request configuration
+        preRequest: (url, init) => {
+            // Add timestamp to URL
+            const modifiedUrl = new URL(url.toString());
+            modifiedUrl.searchParams.set('timestamp', Date.now().toString());
+
+            // Add custom headers
+            init.headers = {
+                ...init.headers,
+                'X-Custom-Header': 'value',
+            };
+
+            return [modifiedUrl, init];
+        },
+
+        // Post-response success hook can modify the response
+        // Note: url and init are readonly in this hook
+        postResponseSuccess: (url, init, response) => {
+            if (response.isJson && response.data) {
+                // Add request metadata to response
+                response.data = {
+                    ...response.data,
+                    _metadata: {
+                        requestUrl: url.toString(),
+                        requestMethod: init.method,
+                        processedAt: new Date().toISOString(),
+                    },
+                };
+            }
+            return response;
+        },
+
+        // Post-response error hook can handle or transform errors
+        // Note: url and init are readonly in this hook
+        postResponseError: (url, init, error, response) => {
+            if (error instanceof HTTPResponseError) {
+                // Create a more detailed error message
+                return new Error(
+                    `Request to ${url} failed with status ${error.response.status}. ` + `Method: ${init.method}, Response: ${error.response.dataString}`,
+                );
+            }
+            return error;
+        },
+    })
+    .build();
+
+// Use the configured fetch instance
+try {
+    const response = await fetch('https://api.example.com/users/123');
+    // response.data includes the _metadata added by postResponseSuccess
+    console.log(response.data);
+} catch (error) {
+    // Error message includes details added by postResponseError
+    console.error(error.message);
 }
 ```
 

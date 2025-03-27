@@ -6,7 +6,7 @@ import { ContextHeader } from '@smooai/logger/AwsLambdaLogger';
 import sleep from '@smooai/utils/utils/sleep';
 import { z } from 'zod';
 
-const URL = 'https://smoo.ai';
+const URL_TO_USE = 'https://smoo.ai';
 
 const JSON_HEADERS = new Headers({ 'Content-Type': 'application/json' });
 const NON_JSON_HEADERS = new Headers({});
@@ -37,7 +37,7 @@ describe('Test fetch', () => {
         const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
         mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-        const response = await fetch(URL, {
+        const response = await fetch(URL_TO_USE, {
             method: 'GET',
         });
 
@@ -45,7 +45,7 @@ describe('Test fetch', () => {
         expect(response.status).toBe(200);
 
         expect(mockFetch.mock.calls.length).toBe(1);
-        expect(mockFetch.mock.calls[0][0]).toBe(URL);
+        expect(mockFetch.mock.calls[0][0]).toBe(URL_TO_USE);
         expect(mockFetch.mock.calls[0][1]).toBeDefined();
         expect(mockFetch.mock.calls[0][1]!.method).toBe('GET');
         expect(mockFetch.mock.calls[0][1]!.headers).toBeDefined();
@@ -59,7 +59,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -72,7 +72,7 @@ describe('Test fetch', () => {
         expect(httpError.response.status).toBe(404);
 
         expect(mockFetch.mock.calls.length).toBe(1);
-        expect(mockFetch.mock.calls[0][0]).toBe(URL);
+        expect(mockFetch.mock.calls[0][0]).toBe(URL_TO_USE);
         expect(mockFetch.mock.calls[0][1]).toBeDefined();
         expect(mockFetch.mock.calls[0][1]!.method).toBe('GET');
         expect(mockFetch.mock.calls[0][1]!.headers).toBeDefined();
@@ -105,7 +105,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -119,7 +119,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(3);
         for (let i = 0; i < 3; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -153,7 +153,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -167,7 +167,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(3);
         for (let i = 0; i < 3; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -187,7 +187,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -198,7 +198,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(3);
         for (let i = 0; i < 3; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -221,7 +221,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -235,7 +235,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(2);
         for (let i = 0; i < 2; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -256,7 +256,7 @@ describe('Test fetch', () => {
         let error: Error;
         try {
             const start = performance.now();
-            const response1 = await fetchWithRateLimit(URL, {
+            const response1 = await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
             expect(response1!.ok).toBeTruthy();
@@ -265,7 +265,7 @@ describe('Test fetch', () => {
             expect(response1end - start).toBeGreaterThanOrEqual(100);
             expect(response1end - start).toBeLessThan(150);
 
-            const response2 = await fetchWithRateLimit(URL, {
+            const response2 = await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
             expect(response2!.ok).toBeTruthy();
@@ -274,7 +274,7 @@ describe('Test fetch', () => {
             expect(response2end - start).toBeGreaterThanOrEqual(200);
             expect(response2end - start).toBeLessThan(250);
 
-            await fetchWithRateLimit(URL, {
+            await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
             const end = performance.now();
@@ -287,7 +287,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(3);
         for (let i = 0; i < 3; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -309,13 +309,13 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            const response1 = await fetchWithRateLimit(URL, {
+            const response1 = await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
-            const response2 = await fetchWithRateLimit(URL, {
+            const response2 = await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
-            const response3 = await fetchWithRateLimit(URL, {
+            const response3 = await fetchWithRateLimit(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -333,7 +333,7 @@ describe('Test fetch', () => {
 
         expect(mockFetch.mock.calls.length).toBe(3);
         for (let i = 0; i < 3; i++) {
-            expect(mockFetch.mock.calls[i][0]).toBe(URL);
+            expect(mockFetch.mock.calls[i][0]).toBe(URL_TO_USE);
             expect(mockFetch.mock.calls[i][1]).toBeDefined();
             expect(mockFetch.mock.calls[i][1]!.method).toBe('GET');
             expect(mockFetch.mock.calls[i][1]!.headers).toBeDefined();
@@ -356,7 +356,7 @@ describe('Test fetch', () => {
 
         let error: Error;
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -379,7 +379,7 @@ describe('Test fetch', () => {
         );
 
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -396,7 +396,7 @@ describe('Test fetch', () => {
         mockFetch.mockResolvedValue(fakeResponse(false, 400, null, 'Error message 127', false));
 
         try {
-            await fetch(URL, {
+            await fetch(URL_TO_USE, {
                 method: 'GET',
             });
         } catch (caughtError) {
@@ -423,7 +423,7 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -447,7 +447,7 @@ describe('Test fetch', () => {
 
             let error: Error | undefined;
             try {
-                await fetchWithSchema(URL, {
+                await fetchWithSchema(URL_TO_USE, {
                     method: 'GET',
                 });
                 throw new Error('Expected schema validation to fail');
@@ -480,7 +480,7 @@ describe('Test fetch', () => {
 
             let error: Error | undefined;
             try {
-                await fetchWithSchema(URL, {
+                await fetchWithSchema(URL_TO_USE, {
                     method: 'GET',
                 });
                 throw new Error('Expected schema validation to fail');
@@ -524,7 +524,7 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -557,7 +557,7 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -578,7 +578,7 @@ describe('Test fetch', () => {
 
             const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -613,7 +613,7 @@ describe('Test fetch', () => {
                 })
                 .build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -651,7 +651,7 @@ describe('Test fetch', () => {
                 })
                 .build();
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
             });
 
@@ -694,7 +694,7 @@ describe('Test fetch', () => {
                 'X-Environment': 'test',
             };
 
-            const response = await fetchWithSchema(URL, {
+            const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
                 headers: requestHeaders,
             });
@@ -721,7 +721,7 @@ describe('Test fetch', () => {
             const requestBody = { key: 'value' };
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'POST',
                 body: JSON.stringify(requestBody),
                 headers: {
@@ -742,7 +742,7 @@ describe('Test fetch', () => {
             const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 credentials: 'include',
             });
@@ -757,7 +757,7 @@ describe('Test fetch', () => {
             const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 mode: 'cors',
             });
@@ -772,7 +772,7 @@ describe('Test fetch', () => {
             const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 redirect: 'follow',
             });
@@ -787,7 +787,7 @@ describe('Test fetch', () => {
             const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 referrer: 'https://example.com',
             });
@@ -803,7 +803,7 @@ describe('Test fetch', () => {
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
             const controller = new AbortController();
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 signal: controller.signal,
             });
@@ -820,7 +820,7 @@ describe('Test fetch', () => {
             mockFetch.mockResolvedValue(fakeResponse(true, 200));
 
             const controller = new AbortController();
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'POST',
                 body: JSON.stringify(requestBody),
                 headers: {
@@ -863,7 +863,7 @@ describe('Test fetch', () => {
                 return fakeResponse(true, 200);
             });
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 options: {
                     timeout: { timeoutMs: 5000 },
@@ -887,7 +887,7 @@ describe('Test fetch', () => {
                 name: z.string(),
             });
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 options: {
                     schema,
@@ -921,7 +921,7 @@ describe('Test fetch', () => {
                 initialIntervalMs: 50,
             };
 
-            const response = await fetch(URL, {
+            const response = await fetch(URL_TO_USE, {
                 method: 'GET',
                 options: {
                     timeout: { timeoutMs: 5000 },
@@ -934,6 +934,284 @@ describe('Test fetch', () => {
             expect(response.status).toBe(200);
             expect(response.data).toEqual(mockData);
             expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+    });
+
+    describe('Lifecycle Hooks', () => {
+        test('Test pre-request hook with default fetch', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const response = await fetch(URL_TO_USE, {
+                method: 'GET',
+                options: {
+                    hooks: {
+                        preRequest: (url, init) => {
+                            const modifiedUrl = new URL(url);
+                            modifiedUrl.searchParams.set('timestamp', '1234567890');
+
+                            const modifiedInit = {
+                                ...init,
+                                headers: {
+                                    ...init.headers,
+                                    'X-Custom-Header': 'test-value',
+                                },
+                            };
+
+                            return [modifiedUrl.toString(), modifiedInit];
+                        },
+                    },
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual(mockData);
+
+            // Verify the modified URL and headers were used
+            expect(mockFetch.mock.calls[0][0].toString()).toContain('timestamp=1234567890');
+            const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(headers['X-Custom-Header']).toBe('test-value');
+        });
+
+        test('Test post-response success hook with default fetch', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const response = await fetch(URL_TO_USE, {
+                method: 'GET',
+                options: {
+                    hooks: {
+                        postResponseSuccess: (url, init, response) => {
+                            if (response.isJson && response.data) {
+                                const data = response.data as Record<string, unknown>;
+                                const metadata = {
+                                    requestUrl: url.toString(),
+                                    requestMethod: init.method || 'GET',
+                                    processedAt: '2024-03-20T12:00:00Z',
+                                };
+                                (response as any).data = {
+                                    ...data,
+                                    _metadata: metadata,
+                                };
+                            }
+                            return response;
+                        },
+                    },
+                },
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual({
+                ...mockData,
+                _metadata: {
+                    requestUrl: URL_TO_USE,
+                    requestMethod: 'GET',
+                    processedAt: '2024-03-20T12:00:00Z',
+                },
+            });
+        });
+
+        test('Test post-response error hook with default fetch', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(false, 404, { error: 'Not found' }));
+
+            let error: Error | undefined;
+            try {
+                await fetch(URL_TO_USE, {
+                    method: 'GET',
+                    options: {
+                        hooks: {
+                            postResponseError: (url, _init, error, _response) => {
+                                if (error instanceof HTTPResponseError) {
+                                    return new Error(`Custom error: ${url.toString()} returned ${error.response.status}`);
+                                }
+                                return error;
+                            },
+                        },
+                    },
+                });
+            } catch (caughtError) {
+                error = caughtError as Error;
+            }
+
+            expect(error).toBeDefined();
+            expect(error!.message).toBe(`Custom error: ${URL_TO_USE} returned 404`);
+        });
+
+        test('Test all hooks with FetchBuilder', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const fetch = new FetchBuilder()
+                .withHooks({
+                    preRequest: (url, init) => {
+                        const modifiedUrl = new URL(url);
+                        modifiedUrl.searchParams.set('timestamp', '1234567890');
+
+                        init.headers = {
+                            ...init.headers,
+                            'X-Custom-Header': 'test-value',
+                        };
+
+                        return [modifiedUrl.toString(), init];
+                    },
+                    postResponseSuccess: (url, init, response) => {
+                        if (response.isJson && response.data) {
+                            const data = response.data as Record<string, unknown>;
+                            const metadata = {
+                                requestUrl: url.toString(),
+                                requestMethod: init.method || 'GET',
+                                processedAt: '2024-03-20T12:00:00Z',
+                            };
+                            (response as any).data = {
+                                ...data,
+                                _metadata: metadata,
+                            };
+                        }
+                        return response;
+                    },
+                    postResponseError: (url, _init, error, _response) => {
+                        if (error instanceof HTTPResponseError) {
+                            return new Error(`Custom error: ${url.toString()} returned ${error.response.status}`);
+                        }
+                        return error;
+                    },
+                })
+                .build();
+
+            const response = await fetch(URL_TO_USE, {
+                method: 'GET',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual({
+                ...mockData,
+                _metadata: {
+                    requestUrl: `${URL_TO_USE}/?timestamp=1234567890`,
+                    requestMethod: 'GET',
+                    processedAt: '2024-03-20T12:00:00Z',
+                },
+            });
+
+            // Verify the modified URL and headers were used
+            expect(mockFetch.mock.calls[0][0].toString()).toContain('timestamp=1234567890');
+            const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+            expect(headers['X-Custom-Header']).toBe('test-value');
+        });
+
+        test('Test hooks with schema validation', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            const mockData = { id: '123', name: 'test' };
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, mockData));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+                _metadata: z
+                    .object({
+                        requestUrl: z.string(),
+                        requestMethod: z.string(),
+                        processedAt: z.string(),
+                    })
+                    .optional(),
+            });
+
+            type SchemaType = z.infer<typeof schema>;
+
+            const fetch = new FetchBuilder<typeof schema>()
+                .withSchema(schema)
+                .withHooks({
+                    preRequest: (url, init) => {
+                        const modifiedUrl = new URL(url);
+                        modifiedUrl.searchParams.set('timestamp', '1234567890');
+                        return [modifiedUrl.toString(), init];
+                    },
+                    postResponseSuccess: (url, init, response) => {
+                        if (response.isJson && response.data) {
+                            const data = response.data as SchemaType;
+                            const metadata = {
+                                requestUrl: url.toString(),
+                                requestMethod: init.method || 'GET',
+                                processedAt: '2024-03-20T12:00:00Z',
+                            };
+                            (response as any).data = {
+                                ...data,
+                                _metadata: metadata,
+                            };
+                        }
+                        return response;
+                    },
+                })
+                .build();
+
+            const response = await fetch(URL_TO_USE, {
+                method: 'GET',
+            });
+
+            expect(response.ok).toBeTruthy();
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual({
+                ...mockData,
+                _metadata: {
+                    requestUrl: `${URL_TO_USE}/?timestamp=1234567890`,
+                    requestMethod: 'GET',
+                    processedAt: '2024-03-20T12:00:00Z',
+                },
+            });
+
+            // Verify schema validation still works
+            expect(schema.safeParse(response.data).success).toBeTruthy();
+        });
+
+        test('Test hooks with error handling and schema validation', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(false, 404, { error: 'Not found' }));
+
+            const schema = z.object({
+                id: z.string(),
+                name: z.string(),
+            });
+
+            const fetch = new FetchBuilder<typeof schema>()
+                .withSchema(schema)
+                .withHooks({
+                    preRequest: (url, init) => {
+                        const modifiedUrl = new URL(url);
+                        modifiedUrl.searchParams.set('timestamp', '1234567890');
+                        return [modifiedUrl.toString(), init];
+                    },
+                    postResponseError: (url, _init, error, _response) => {
+                        if (error instanceof HTTPResponseError) {
+                            return new Error(`Custom error: ${url.toString()} returned ${error.response.status}`);
+                        }
+                        return error;
+                    },
+                })
+                .build();
+
+            let error: Error | undefined;
+            try {
+                await fetch(URL_TO_USE, {
+                    method: 'GET',
+                    options: {
+                        schema: undefined, // Disable schema validation for this test
+                    },
+                });
+            } catch (caughtError) {
+                error = caughtError as Error;
+            }
+
+            expect(error).toBeDefined();
+            expect(error!.message).toBe(`Custom error: ${URL_TO_USE}/?timestamp=1234567890 returned 404`);
+
+            // Verify the modified URL was used
+            expect(mockFetch.mock.calls[0][0].toString()).toContain('timestamp=1234567890');
         });
     });
 });
