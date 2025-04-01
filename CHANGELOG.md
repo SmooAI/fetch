@@ -1,5 +1,15 @@
 # @smooai/fetch
 
+## 1.3.0
+
+### Minor Changes
+
+- 937a5cd: Changed FetchBuilder to take the schema in the constructor to fix type inference.
+
+### Patch Changes
+
+- 937a5cd: Updated all vite dependencies.
+
 ## 1.2.1
 
 ### Patch Changes
