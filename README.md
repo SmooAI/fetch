@@ -102,6 +102,7 @@ These defaults are designed to handle common API integration scenarios while pro
 - Works with Zod, ArkType, and other Standard Schema implementations
 - Type-safe response validation
 - Human-readable validation errors
+- Typed responses
 
 #### 🔄 Lifecycle Hooks
 
@@ -217,7 +218,7 @@ const response = await fetch('https://api.example.com/data', {
 The `FetchBuilder` provides a fluent interface for configuring fetch instances:
 
 ```typescript
-import { FetchBuilder } from '@smooai/fetch';
+import { FetchBuilder, RetryMode } from '@smooai/fetch';
 import { z } from 'zod';
 
 // Define a response schema
@@ -228,7 +229,7 @@ const UserSchema = z.object({
 });
 
 // Create a configured fetch instance
-const fetch = new FetchBuilder()
+const fetch = new FetchBuilder(UserSchema)
     .withTimeout(5000) // 5 second timeout
     .withRetry({
         attempts: 3,
@@ -236,7 +237,6 @@ const fetch = new FetchBuilder()
         mode: RetryMode.JITTER,
     })
     .withRateLimit(100, 60000) // 100 requests per minute
-    .withSchema(UserSchema)
     .build();
 
 // Use the configured fetch instance
@@ -380,7 +380,7 @@ const response = await fetch('https://api.example.com/users/123', {
 });
 
 // Or using FetchBuilder
-const fetch = new FetchBuilder().withSchema(UserSchema).build();
+const fetch = new FetchBuilder(UserSchema).build();
 
 try {
     const response = await fetch('https://api.example.com/users/123');
@@ -410,8 +410,7 @@ const UserSchema = z.object({
 });
 
 // Create a fetch instance with hooks
-const fetch = new FetchBuilder()
-    .withSchema(UserSchema)
+const fetch = new FetchBuilder(UserSchema)
     .withHooks({
         // Pre-request hook can modify both URL and request configuration
         preRequest: (url, init) => {
@@ -498,8 +497,7 @@ const response = await fetch('https://api.example.com/users/123', {
 });
 
 // Or using FetchBuilder
-const fetch = new FetchBuilder()
-    .withSchema(UserSchema)
+const fetch = new FetchBuilder(UserSchema)
     .withInit({
         headers: {
             Authorization: 'Bearer your-auth-token',
@@ -538,14 +536,13 @@ const customLogger = {
 };
 
 // Create a fetch instance with the custom logger
-const fetch = new FetchBuilder()
+const fetch = new FetchBuilder(
+    z.object({
+        id: z.string(),
+        name: z.string(),
+    }),
+)
     .withLogger(customLogger)
-    .withSchema(
-        z.object({
-            id: z.string(),
-            name: z.string(),
-        }),
-    )
     .build();
 
 // All requests will now use your custom logger

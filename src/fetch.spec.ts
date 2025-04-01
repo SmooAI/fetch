@@ -421,7 +421,7 @@ describe('Test fetch', () => {
                 name: z.string(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
@@ -443,7 +443,7 @@ describe('Test fetch', () => {
                 name: z.string(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             let error: Error | undefined;
             try {
@@ -476,7 +476,7 @@ describe('Test fetch', () => {
                 email: z.string().email(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             let error: Error | undefined;
             try {
@@ -522,7 +522,7 @@ describe('Test fetch', () => {
                 timestamp: z.string().datetime(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
@@ -555,7 +555,7 @@ describe('Test fetch', () => {
                 total: z.number(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
@@ -576,7 +576,7 @@ describe('Test fetch', () => {
                 name: z.string(),
             });
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>().withSchema(schema).build();
+            const fetchWithSchema = new FetchBuilder(schema).build();
 
             const response = await fetchWithSchema(URL_TO_USE, {
                 method: 'GET',
@@ -606,8 +606,7 @@ describe('Test fetch', () => {
                 'X-Environment': 'test',
             };
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>()
-                .withSchema(schema)
+            const fetchWithSchema = new FetchBuilder(schema)
                 .withInit({
                     headers: predefinedHeaders,
                 })
@@ -642,8 +641,7 @@ describe('Test fetch', () => {
             });
 
             const authToken = 'Bearer test-token-123';
-            const fetchWithSchema = new FetchBuilder<typeof schema>()
-                .withSchema(schema)
+            const fetchWithSchema = new FetchBuilder(schema)
                 .withInit({
                     headers: {
                         Authorization: authToken,
@@ -682,8 +680,7 @@ describe('Test fetch', () => {
                 Authorization: 'Bearer test-token-123',
             };
 
-            const fetchWithSchema = new FetchBuilder<typeof schema>()
-                .withSchema(schema)
+            const fetchWithSchema = new FetchBuilder(schema)
                 .withInit({
                     headers: predefinedHeaders,
                 })
@@ -1124,8 +1121,7 @@ describe('Test fetch', () => {
 
             type SchemaType = z.infer<typeof schema>;
 
-            const fetch = new FetchBuilder<typeof schema>()
-                .withSchema(schema)
+            const fetch = new FetchBuilder(schema)
                 .withHooks({
                     preRequest: (url, init) => {
                         const modifiedUrl = new URL(url);
@@ -1178,8 +1174,7 @@ describe('Test fetch', () => {
                 name: z.string(),
             });
 
-            const fetch = new FetchBuilder<typeof schema>()
-                .withSchema(schema)
+            const fetch = new FetchBuilder(schema)
                 .withHooks({
                     preRequest: (url, init) => {
                         const modifiedUrl = new URL(url);

@@ -524,12 +524,10 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
         dataString = await response.text();
     }
 
-    const responseWithBody = {
-        ...response,
-        isJson,
-        data,
-        dataString,
-    };
+    const responseWithBody = response as any;
+    responseWithBody.isJson = isJson;
+    responseWithBody.dataString = dataString;
+    responseWithBody.data = data;
 
     if (response.ok || response.redirected) {
         return responseWithBody;
@@ -764,6 +762,10 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
     private _requestOptions?: RequestOptions<Schema>;
     private _containerOptions?: FetchContainerOptions;
 
+    constructor(schema?: Schema) {
+        if (schema) this.withSchema(schema);
+    }
+
     /**
      * Sets the initial request configuration.
      * @param init - The initial request configuration
@@ -887,7 +889,7 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
      * @param schema - The StandardSchemaV1 compatible schema to use for validation
      * @returns The builder instance for method chaining
      */
-    withSchema(schema: Schema): FetchBuilder<Schema> {
+    private withSchema(schema: Schema): FetchBuilder<Schema> {
         this._requestOptions = {
             ...this._requestOptions,
             schema,
@@ -914,8 +916,7 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
      * @returns A configured fetch function with the specified options
      */
     build(): {
-        (url: RequestInfo, init?: RequestInitWithOptions<never>): Promise<ResponseWithBody<any>>;
-        <T extends StandardSchemaV1>(url: RequestInfo, init?: RequestInitWithOptions<T>): Promise<ResponseWithBody<StandardSchemaV1.InferOutput<T>>>;
+        (url: RequestInfo, init?: RequestInitWithOptions<Schema>): Promise<ResponseWithBody<ResponseType<Schema>>>;
     } {
         // Apply defaults for request options
         const requestOptions = {
