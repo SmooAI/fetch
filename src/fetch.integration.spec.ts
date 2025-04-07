@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { delay, http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { http, HttpResponse, delay } from 'msw';
-import { FetchBuilder, HTTPResponseError, TimeoutError } from './fetch';
-import fetch from './fetch';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import fetch, { FetchBuilder, HTTPResponseError, TimeoutError } from './fetch';
 
 // Define test schema
 const TestSchema = z.object({

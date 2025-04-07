@@ -449,9 +449,7 @@ const fetch = new FetchBuilder(UserSchema)
         postResponseError: (url, init, error, response) => {
             if (error instanceof HTTPResponseError) {
                 // Create a more detailed error message
-                return new Error(
-                    `Request to ${url} failed with status ${error.response.status}. ` + `Method: ${init.method}, Response: ${error.response.dataString}`,
-                );
+                return new Error(`Request to ${url} failed with status ${error.response.status}. ` + `Method: ${init.method}`);
             }
             return error;
         },
@@ -554,7 +552,7 @@ const response = await fetch('https://api.example.com/users/123');
 #### Error Handling <a name="error-handling"></a>
 
 ```typescript
-import fetch, { HTTPResponseError, RetryError, TimeoutError, RatelimitError } from '@smooai/fetch';
+import fetch, { HTTPResponseError, RatelimitError, RetryError, TimeoutError } from '@smooai/fetch';
 
 try {
     const response = await fetch('https://api.example.com/data');
