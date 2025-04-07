@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.4.0
+
+### Minor Changes
+
+- 88f6e41: Fix issue with pre-using response body and update prettier plugins.
+
 ## 1.3.0
 
 ### Minor Changes
