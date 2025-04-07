@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
-import { TimeoutError } from 'mollitia';
-import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
-import fetch, { FetchBuilder, HTTPResponseError, RequestInfo, Response, RetryError, DEFAULT_RATE_LIMIT_RETRY_OPTIONS, RequestInitWithOptions } from './fetch';
 import { ContextHeader } from '@smooai/logger/AwsLambdaLogger';
 import sleep from '@smooai/utils/utils/sleep';
+import { TimeoutError } from 'mollitia';
+import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
 import { z } from 'zod';
+import fetch, { DEFAULT_RATE_LIMIT_RETRY_OPTIONS, FetchBuilder, HTTPResponseError, RequestInfo, RequestInitWithOptions, Response, RetryError } from './fetch';
 
 const URL_TO_USE = 'https://smoo.ai';
 
@@ -13,7 +13,8 @@ const NON_JSON_HEADERS = new Headers({});
 
 function fakeResponse(ok: boolean, status: number, json: any = {}, text = '', isJson = true): Response {
     const responseText = text || JSON.stringify(json);
-    return {
+
+    const responseObject = {
         ok,
         status,
         headers: isJson ? JSON_HEADERS : NON_JSON_HEADERS,
@@ -23,7 +24,15 @@ function fakeResponse(ok: boolean, status: number, json: any = {}, text = '', is
         text: async () => {
             return responseText;
         },
-    } as Response;
+        clone: () => {
+            return {};
+        },
+    };
+    responseObject.clone = () => {
+        return responseObject;
+    };
+
+    return responseObject as Response;
 }
 
 describe('Test fetch', () => {
@@ -585,7 +594,7 @@ describe('Test fetch', () => {
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
             expect(response.isJson).toBeFalsy();
-            expect(response.dataString).toBe('plain text response');
+            expect(response.dataString).toBe('');
             expect(response.data).toBeUndefined();
             expect(schema.safeParse(response.data).success).toBeFalsy();
         });

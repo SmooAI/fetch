@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import merge from 'lodash.merge';
-import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
-import Logger, { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
 import { faker } from '@faker-js/faker';
+import Logger, { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
 import { handleSchemaValidation, HumanReadableSchemaError } from '@smooai/utils/validation/standardSchema';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import merge from 'lodash.merge';
+import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
+
 export { RatelimitError, TimeoutError } from 'mollitia';
 export * from 'mollitia';
 
@@ -163,7 +164,7 @@ export class HTTPResponseError<T = any> extends Error {
             }
         }
         if (!errIsSet) {
-            errorStr = response.dataString;
+            errorStr = response.dataString || 'Unknown error';
         }
         super(`${msg ? `${msg}; ` : ''}${errorStr}; HTTP Error Response: ${response.status} ${response.statusText}`);
         this.response = response;
@@ -499,13 +500,15 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     const response = await globalFetch()(url, useInit);
     let isJson = false;
     let data: ResponseType<Schema> | undefined;
-    let dataString: string;
+    let dataString: string = '';
 
-    if (response.headers?.has('Content-Type') && response.headers?.get('Content-Type')?.includes('application/json')) {
-        dataString = await response.text();
+    const responseClone = response.clone();
+
+    if (responseClone.headers?.has('Content-Type') && responseClone.headers?.get('Content-Type')?.includes('application/json')) {
+        dataString = await responseClone.text();
         try {
             const parsedData = JSON.parse(dataString);
-            if (response.ok && options?.schema) {
+            if (responseClone.ok && options?.schema) {
                 data = (await handleSchemaValidation(options.schema, parsedData)) as Schema extends StandardSchemaV1
                     ? StandardSchemaV1.InferOutput<Schema>
                     : any;
@@ -521,7 +524,6 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
         }
     } else {
         isJson = false;
-        dataString = await response.text();
     }
 
     const responseWithBody = response as any;
@@ -529,9 +531,10 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     responseWithBody.dataString = dataString;
     responseWithBody.data = data;
 
-    if (response.ok || response.redirected) {
+    if (responseClone.ok || responseClone.redirected) {
         return responseWithBody;
     } else {
+        responseWithBody.dataString = await responseClone.text();
         throw new HTTPResponseError<ResponseType<Schema>>(responseWithBody);
     }
 }
