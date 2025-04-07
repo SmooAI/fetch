@@ -1,6 +1,6 @@
 {
     "name": "@smooai/fetch",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "description": "A powerful fetch client library built on top of the native `fetch` API, designed for both Node.js and browser environments. Features built-in support for retries, timeouts, rate limiting, circuit breaking, and Standard Schema validation.",
     "homepage": "https://github.com/SmooAI/fetch#readme",
     "bugs": {

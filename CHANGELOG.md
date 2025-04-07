@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.4.1
+
+### Patch Changes
+
+- d4aecdc: Fix issue with JSON error message.
+
 ## 1.4.0
 
 ### Minor Changes
