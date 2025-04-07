@@ -501,11 +501,13 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     let isJson = false;
     let data: ResponseType<Schema> | undefined;
     let dataString: string = '';
+    let read = false;
 
     const responseClone = response.clone();
 
     if (responseClone.headers?.has('Content-Type') && responseClone.headers?.get('Content-Type')?.includes('application/json')) {
         dataString = await responseClone.text();
+        read = true;
         try {
             const parsedData = JSON.parse(dataString);
             if (responseClone.ok && options?.schema) {
@@ -534,7 +536,9 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     if (responseClone.ok || responseClone.redirected) {
         return responseWithBody;
     } else {
-        responseWithBody.dataString = await responseClone.text();
+        if (!read) {
+            responseWithBody.dataString = await responseClone.text();
+        }
         throw new HTTPResponseError<ResponseType<Schema>>(responseWithBody);
     }
 }
