@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.4.2
+
+### Patch Changes
+
+- 361a81a: Update readme.
+
 ## 1.4.1
 
 ### Patch Changes
