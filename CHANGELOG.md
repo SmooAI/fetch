@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.5.0
+
+### Minor Changes
+
+- 8e9855f: Fix package exports.
+
 ## 1.4.2
 
 ### Patch Changes
