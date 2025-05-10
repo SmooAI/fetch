@@ -17,17 +17,16 @@
         "url": "https://smooai.com"
     },
     "exports": {
-        "./fetch": {
-            "types": "./dist/fetch.d.ts",
-            "import": "./dist/fetch.mjs",
-            "require": "./dist/fetch.js",
-            "default": "./dist/fetch.js"
-        },
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs",
             "require": "./dist/index.js",
             "default": "./dist/index.js"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.mjs",
+            "require": "./dist/*.js"
         }
     },
     "main": "./dist/index.js",
@@ -50,8 +49,8 @@
     },
     "dependencies": {
         "@faker-js/faker": "^9.6.0",
-        "@smooai/logger": "^1.0.22",
-        "@smooai/utils": "^1.0.21",
+        "@smooai/logger": "^1.1.0",
+        "@smooai/utils": "^1.2.1",
         "@standard-schema/spec": "^1.0.0",
         "@standard-schema/utils": "^0.3.0",
         "lodash.merge": "^4.6.2",
