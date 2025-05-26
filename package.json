@@ -36,7 +36,7 @@
         "dist/**"
     ],
     "scripts": {
-        "build": "pnpm create-entry-points -i \"src/**/*.ts\" && pnpm tsup",
+        "build": "pnpm tsup",
         "check-all": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
         "ci:publish": "pnpm build && pnpm changeset publish",
         "format": "prettier --write \"**/*.{ts,tsx,md,json,js,cjs,mjs}\"",
@@ -49,8 +49,8 @@
     },
     "dependencies": {
         "@faker-js/faker": "^9.6.0",
-        "@smooai/logger": "^1.1.0",
-        "@smooai/utils": "^1.2.1",
+        "@smooai/logger": "^1.2.2",
+        "@smooai/utils": "^1.2.5",
         "@standard-schema/spec": "^1.0.0",
         "@standard-schema/utils": "^0.3.0",
         "lodash.merge": "^4.6.2",

@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { faker } from '@faker-js/faker';
-import Logger, { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
+import { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
 import { handleSchemaValidation, HumanReadableSchemaError } from '@smooai/utils/validation/standardSchema';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import merge from 'lodash.merge';
 import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
+import { contextLogger } from './logger';
 
 export { RatelimitError, TimeoutError } from 'mollitia';
 export * from 'mollitia';
@@ -87,7 +87,7 @@ export interface LoggerInterface {
     error(error: Error | unknown, message: string, ...args: any[]): void;
 }
 
-const contextLogger = new Logger({ name: 'fetch' });
+const contextLoggerToUse = contextLogger();
 
 /**
  * Extended Response type that includes parsed body data and metadata.
@@ -291,7 +291,7 @@ export interface RequestOptions<Schema extends StandardSchemaV1 = never> {
 }
 
 const DEFAULTS: RequestOptions<never> = {
-    logger: contextLogger,
+    logger: contextLoggerToUse,
     retry: DEFAULT_RETRY_OPTIONS,
     timeout: {
         timeoutMs: 10000,
@@ -402,7 +402,7 @@ function generateRandomName(prefix: string): string {
 
 function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options: RequestOptions<Schema>): Module[] {
     const modules: Module[] = [];
-    const logger = options.logger || contextLogger;
+    const logger = options.logger || contextLoggerToUse;
 
     if (options.retry) {
         modules.push(
@@ -434,7 +434,7 @@ function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options:
 
 function prepareFetchContainerModules(options: RequestOptions, containerOptions?: FetchContainerOptions): Module[] {
     const modules: Module[] = [];
-    const logger = options.logger || contextLogger;
+    const logger = options.logger || contextLoggerToUse;
 
     if (containerOptions) {
         if (containerOptions.rateLimit) {
@@ -555,7 +555,7 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
             modules: prepareCircuitModules(options),
         },
     });
-    const logger = options.logger || contextLogger;
+    const logger = options.logger || contextLoggerToUse;
 
     // Apply pre-request hook if present
     let modifiedInit = init;
@@ -713,7 +713,7 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
         const { options: requestOptions, ...requestInit } = init || {};
         const __init = prepareDefaultInit(merge({}, _init, requestInit));
         const __requestOptions = prepareDefaultOptions(merge({}, _requestOptions, requestOptions));
-        const logger = __requestOptions.logger || contextLogger;
+        const logger = __requestOptions.logger || contextLoggerToUse;
         const urlObj = new URL(url.toString());
         const headers = getHeadersObject(__init.headers as Headers);
         const requestBody = getRequestBody(__init.body);
@@ -868,7 +868,7 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
      * @param logger - The logger instance to use
      * @returns The builder instance for method chaining
      */
-    withLogger(logger: LoggerInterface = contextLogger): FetchBuilder<Schema> {
+    withLogger(logger: LoggerInterface = contextLoggerToUse): FetchBuilder<Schema> {
         this._requestOptions = {
             ...this._requestOptions,
             logger,

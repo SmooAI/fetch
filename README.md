@@ -57,6 +57,31 @@ A powerful fetch client library built on top of the native `fetch` API, designed
 pnpm add @smooai/fetch
 ```
 
+### Usage
+
+The package provides two entry points:
+
+- `@smooai/fetch` - For Node.js environments
+- `@smooai/fetch/browser` - For browser environments
+
+#### Node.js Usage
+
+```typescript
+import fetch from '@smooai/fetch';
+
+// Simple GET request
+const response = await fetch('https://api.example.com/data');
+```
+
+#### Browser Usage
+
+```typescript
+import fetch from '@smooai/fetch/browser';
+
+// Simple GET request
+const response = await fetch('https://api.example.com/data');
+```
+
 ### Key Features
 
 #### 🚀 Native Fetch API
