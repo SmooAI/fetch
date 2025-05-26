@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.6.0
+
+### Minor Changes
+
+- 53a3cc7: Added Browser export.
+
 ## 1.5.0
 
 ### Minor Changes
