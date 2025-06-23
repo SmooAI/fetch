@@ -1,4 +1,4 @@
-import AwsLambdaLogger from '@smooai/logger/AwsLambdaLogger';
+import AwsServerLogger from '@smooai/logger/AwsServerLogger';
 import BrowserLogger from '@smooai/logger/BrowserLogger';
 import type Logger from '@smooai/logger/Logger';
 import { isRunningInBrowser } from '@smooai/utils/env/index';
@@ -11,7 +11,7 @@ export const contextLogger = (): Logger => {
         return logger;
     }
 
-    const logger = new AwsLambdaLogger();
+    const logger = new AwsServerLogger();
     logger.addLambdaContext();
     return logger;
 };
