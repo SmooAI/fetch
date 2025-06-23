@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
-import { ContextHeader } from '@smooai/logger/AwsLambdaLogger';
+import { ContextHeader } from '@smooai/logger/AwsServerLogger';
 import sleep from '@smooai/utils/utils/sleep';
 import { TimeoutError } from 'mollitia';
 import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
