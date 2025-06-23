@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 1.6.1
+
+### Patch Changes
+
+- 7de1ffa: Update smoo dependencies.
+
 ## 1.6.0
 
 ### Minor Changes
