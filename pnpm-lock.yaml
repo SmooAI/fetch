@@ -16,8 +16,8 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0
       '@smooai/utils':
-        specifier: ^1.2.8
-        version: 1.2.8(@types/node@22.13.10)(typescript@5.8.2)
+        specifier: ^1.2.9
+        version: 1.2.9(@types/node@22.13.10)(typescript@5.8.2)
       '@standard-schema/spec':
         specifier: ^1.0.0
         version: 1.0.0
@@ -1267,16 +1267,12 @@ packages:
     peerDependencies:
       typescript: ^5.8.2
 
-  '@smooai/logger@1.2.4':
-    resolution: {integrity: sha512-0etaJnCxw+Ngr1zNpbae7a+FIzbwXXgx37pm79XrnUXw2AWBCKUB7AwA1Gd+83Da9zGjkgGLiwZGv84BdoHliQ==}
-    engines: {node: '>=20.0.0'}
-
   '@smooai/logger@2.3.0':
     resolution: {integrity: sha512-14S9HM+5ahRxE63t/AzVlK30QKkbf8T5N0Mqbq9s4i8sVVIRc/fOxNHr3gL0tv7ddzntc/PagAcg2e3EMtKJRQ==}
     engines: {node: '>=20.0.0'}
 
-  '@smooai/utils@1.2.8':
-    resolution: {integrity: sha512-DStyJ4PyPHL1Lp/W9RSUD6C12m3qxT7OyiSOX1wtj3bfhyha1WgJoyghq9UG8jLSdLivB1neDxqCE0IZvUSrvg==}
+  '@smooai/utils@1.2.9':
+    resolution: {integrity: sha512-NLLHHPWXQYBfRDwFmiSrrWO8XAC5NU5rVODgP/aJpAaTtf7LrHLiLpwxqyDAiS60GC+DtyyEKiuHU6pj+ZKvpQ==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -5692,22 +5688,6 @@ snapshots:
     dependencies:
       typescript: 5.8.2
 
-  '@smooai/logger@1.2.4':
-    dependencies:
-      '@aws-sdk/client-sqs': 3.835.0
-      '@opentelemetry/api': 1.9.0
-      browser-dtector: 4.1.0
-      dayjs: 1.11.13
-      esm-utils: 4.4.2
-      json-stable-stringify: 1.3.0
-      lodash.merge: 4.6.2
-      picocolors: 1.1.1
-      serialize-error: 11.0.3
-      source-map-support: 0.5.21
-      uuid: 9.0.1
-    transitivePeerDependencies:
-      - aws-crt
-
   '@smooai/logger@2.3.0':
     dependencies:
       '@aws-sdk/client-sqs': 3.835.0
@@ -5726,12 +5706,12 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@smooai/utils@1.2.8(@types/node@22.13.10)(typescript@5.8.2)':
+  '@smooai/utils@1.2.9(@types/node@22.13.10)(typescript@5.8.2)':
     dependencies:
       '@oclif/core': 2.16.0(@types/node@22.13.10)(typescript@5.8.2)
       '@oclif/plugin-help': 6.2.29
       '@oclif/plugin-plugins': 5.4.42
-      '@smooai/logger': 1.2.4
+      '@smooai/logger': 2.3.0
       '@standard-schema/spec': 1.0.0
       '@standard-schema/utils': 0.3.0
       find-up: 7.0.0
