@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 2.0.0
+
+### Major Changes
+
+- d8ed851: Changed how we exported browser for better build safety.
+
 ## 1.6.2
 
 ### Patch Changes
