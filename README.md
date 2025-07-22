@@ -41,7 +41,7 @@ Check out other SmooAI packages at [npmjs.com/org/smooai](https://www.npmjs.com/
 
 ## About @smooai/fetch
 
-A powerful fetch client library built on top of the native `fetch` API, designed for both Node.js and browser environments. Features built-in support for retries, timeouts, rate limiting, circuit breaking, and Standard Schema validation.
+**Stop writing the same retry logic over and over** - A resilient HTTP client that handles the chaos of real-world APIs, so you can focus on building features instead of handling failures.
 
 ![NPM Version](https://img.shields.io/npm/v/%40smooai%2Ffetch?style=for-the-badge)
 ![NPM Downloads](https://img.shields.io/npm/dw/%40smooai%2Ffetch?style=for-the-badge)
@@ -51,26 +51,78 @@ A powerful fetch client library built on top of the native `fetch` API, designed
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SmooAI/fetch/release.yml?style=for-the-badge)
 ![GitHub Repo stars](https://img.shields.io/github/stars/SmooAI/fetch?style=for-the-badge)
 
+### Why @smooai/fetch?
+
+Ever had your app crash because an API was down for 2 seconds? Or watched your users stare at loading spinners because a third-party service hit its rate limit? Traditional fetch gives you the request, but leaves you to handle the reality of network failures.
+
+**@smooai/fetch automatically handles:**
+
+**For Unreliable APIs:**
+
+- 🔄 **Smart retries** - Exponential backoff with jitter to prevent thundering herds
+- ⏱️ **Automatic timeouts** - Never hang indefinitely on slow endpoints
+- 🚦 **Rate limit respect** - Reads Retry-After headers and backs off intelligently
+- 🔌 **Circuit breaking** - Stop hammering services that are clearly down
+- ⚡ **Request deduplication** - Prevent duplicate in-flight requests
+
+**For Developer Experience:**
+
+- 🎯 **Type-safe responses** - Schema validation with any Standard Schema validator
+- 🔗 **Request lifecycle** - Pre/post hooks for authentication and logging
+- 📊 **Built-in telemetry** - Track success rates and response times
+- 🌐 **Universal** - Same API for Node.js and browsers
+- 🪶 **Zero dependencies** - Just the fetch API and smart patterns
+
 ### Install
 
 ```sh
 pnpm add @smooai/fetch
 ```
 
-### Usage
+## The Power of Resilient Fetching
 
-The package provides two entry points:
+### Never Let a Hiccup Break Your App
 
-- `@smooai/fetch` - For Node.js environments
-- `@smooai/fetch/browser` - For browser environments
+Watch how @smooai/fetch handles common failure scenarios:
+
+```typescript
+import fetch from '@smooai/fetch';
+
+// This won't crash if the API is temporarily down
+const response = await fetch('https://flaky-api.com/data');
+
+// Behind the scenes:
+// Attempt 1: 500 error - waits 500ms
+// Attempt 2: 503 error - waits 1000ms
+// Attempt 3: 200 success! ✅
+```
+
+Your users never know the API had issues - the request just works.
+
+### Respect Rate Limits Automatically
+
+No more manual retry-after parsing:
+
+```typescript
+const response = await fetch('https://api.github.com/user/repos');
+
+// If GitHub says "slow down":
+// - Sees 429 status + Retry-After: 60
+// - Automatically waits 60 seconds
+// - Retries and succeeds
+// - Your code continues normally
+```
+
+### Production-Ready Examples
 
 #### Node.js Usage
 
 ```typescript
 import fetch from '@smooai/fetch';
 
-// Simple GET request
-const response = await fetch('https://api.example.com/data');
+// It's just fetch, but resilient
+const response = await fetch('https://api.example.com/users');
+const users = await response.json();
 ```
 
 #### Browser Usage
@@ -78,122 +130,222 @@ const response = await fetch('https://api.example.com/data');
 ```typescript
 import fetch from '@smooai/fetch/browser';
 
-// Simple GET request
-const response = await fetch('https://api.example.com/data');
+// Same API, different entry point
+const response = await fetch('/api/checkout', {
+    method: 'POST',
+    body: { items: cart },
+});
 ```
 
-### Key Features
+#### Schema Validation That Makes Sense
 
-#### 🚀 Native Fetch API
+```typescript
+import { z } from 'zod';
 
-- Built on top of the native `fetch` API
-- Works seamlessly in both Node.js and browser environments
-- Full TypeScript support
-- Automatic JSON parsing and stringifying
-- Structured error handling with detailed response information
+const UserSchema = z.object({
+    id: z.string(),
+    email: z.string().email(),
+});
 
-#### ⚙️ Opinionated Defaults
+// Your API returns garbage? You'll know immediately
+const response = await fetch('https://api.example.com/user', {
+    options: { schema: UserSchema },
+});
 
-The default export `fetch` comes with carefully chosen defaults for common use cases:
+// response.data is fully typed as { id: string; email: string }
+// No more runtime surprises in production
+```
 
-- **Retry Configuration**
+#### Circuit Breaking for Critical Services
 
-    - 2 retry attempts
-    - 500ms initial interval with jitter
-    - Exponential backoff with factor of 2
-    - 0.5 jitter adjustment
-    - Smart retry decisions based on:
-        - HTTP 5xx errors
-        - Rate limit responses (429)
-        - Timeout errors
-        - Retry-After header support
+```typescript
+import { FetchBuilder } from '@smooai/fetch';
 
-- **Timeout Settings**
+// Stop hammering services that are clearly struggling
+const criticalAPI = new FetchBuilder()
+    .withCircuitBreaker({
+        failureThreshold: 5, // 5 failures
+        failureWindow: 60000, // in 60 seconds
+        recoveryTime: 30000, // try again after 30s
+    })
+    .build();
 
-    - 10 second timeout for all requests
-    - Automatic timeout error handling
+// If the service is down, this fails fast instead of waiting
+try {
+    await criticalAPI('https://payment-processor.com/charge');
+} catch (error) {
+    // Circuit is open - service is down
+    // Show fallback UI immediately
+}
+```
 
-- **Rate Limit Retry**
-    - 1 retry attempt for rate limit errors
-    - 500ms initial interval
-    - Smart handling of rate limit headers
-    - 50ms buffer added to retry timing
+## Real-World Scenarios
 
-These defaults are designed to handle common API integration scenarios while providing a good balance between reliability and performance. They can be overridden using the `FetchBuilder` pattern or by passing custom options to the default `fetch` function.
+### Handle Authentication Globally
 
-#### ✅ Schema Validation
+```typescript
+const api = new FetchBuilder()
+    .withHooks({
+        preRequest: (url, init) => {
+            // Add auth header to every request
+            init.headers = {
+                ...init.headers,
+                Authorization: `Bearer ${getToken()}`,
+            };
+            return [url, init];
+        },
+        postResponseError: (url, init, error) => {
+            if (error.response?.status === 401) {
+                // Token expired - refresh and retry
+                refreshToken();
+            }
+            return error;
+        },
+    })
+    .build();
+```
 
-- Built-in support for [Standard Schema](https://github.com/standard-schema/standard-schema) compatible validators
-- Works with Zod, ArkType, and other Standard Schema implementations
-- Type-safe response validation
-- Human-readable validation errors
-- Typed responses
+### Track Performance Automatically
 
-#### 🔄 Lifecycle Hooks
+```typescript
+const api = new FetchBuilder()
+    .withHooks({
+        postResponseSuccess: (url, init, response) => {
+            // Send metrics to your monitoring service
+            metrics.record({
+                endpoint: url.pathname,
+                duration: response.headers.get('x-response-time'),
+                status: response.status,
+            });
+            return response;
+        },
+    })
+    .build();
+```
 
-- **Pre-request Hook**
+### Graceful Degradation
 
-    - Modify URL and request configuration before sending
-    - Add custom headers, query parameters, or transform request body
-    - Full access to modify both URL and request init
+```typescript
+// Primary API with circuit breaker
+const primaryAPI = new FetchBuilder().withCircuitBreaker({ failureThreshold: 3 }).build();
 
-- **Post-response Success Hook**
+// Fallback API for resilience
+const fallbackAPI = new FetchBuilder()
+    .withTimeout(2000) // Faster timeout for fallback
+    .build();
 
-    - Transform successful responses after schema validation
-    - Add metadata or transform response data
-    - Read-only access to original request details
+async function getWeather(city: string) {
+    try {
+        return await primaryAPI(`https://api1.weather.com/${city}`);
+    } catch (error) {
+        // Seamlessly fall back to secondary service
+        console.warn('Primary weather API failed, using fallback');
+        return await fallbackAPI(`https://api2.weather.com/${city}`);
+    }
+}
+```
 
-- **Post-response Error Hook**
+## The Smart Defaults
 
-    - Handle or transform errors before they're thrown
-    - Create detailed error messages with request context
-    - Read-only access to original request details
+Out of the box, @smooai/fetch is configured for the real world:
 
-- **Type Safety**
+**Retry Strategy:**
 
-    - Fully typed with TypeScript
-    - Non-editable parameters marked as readonly
-    - Schema types preserved throughout lifecycle
+- 2 automatic retries on failure
+- Exponential backoff: 500ms → 1s → 2s
+- Jitter to prevent thundering herds
+- Only retries on network errors or 5xx responses
 
-- **Integration**
-    - Works seamlessly with schema validation
-    - Compatible with retry, rate limiting, and circuit breaking
-    - Preserves request/response context
+**Timeout Protection:**
 
-#### 🛡️ Resilience Features
+- 10-second default timeout
+- Prevents indefinite hangs
+- Configurable per request
 
-- **Retry Mechanism**
+**Rate Limit Handling:**
 
-    - Configurable retry attempts and intervals
-    - Jitter support for distributed retries
-    - Smart retry decisions based on response status
-    - Automatic handling of Retry-After headers
-    - Custom retry callbacks
+- Respects Retry-After headers
+- Automatic backoff on 429 responses
+- Prevents API ban hammers
 
-- **Timeout Control**
+## Seamless Integration with @smooai/logger
 
-    - Configurable timeout duration
-    - Optional retry on timeout
-    - Automatic timeout error handling
+@smooai/fetch works perfectly with [@smooai/logger](https://github.com/SmooAI/logger) to provide complete observability across your distributed systems:
 
-- **Rate Limiting**
+### Automatic Correlation ID Propagation
 
-    - Configurable request limits per time period
-    - Automatic rate limit header handling
-    - Smart retry on rate limit errors
-    - Custom rate limit retry strategies
+```typescript
+import fetch from '@smooai/fetch';
+import { AwsServerLogger } from '@smooai/logger/AwsServerLogger';
 
-- **Circuit Breaking**
-    - Sliding window failure rate tracking
-    - Configurable failure thresholds
-    - Half-open state support
-    - Automatic recovery
-    - Custom error callbacks
+const logger = new AwsServerLogger({ name: 'APIClient' });
 
-#### 🔄 Automatic Context
+// Correlation IDs flow automatically through your requests
+const api = new FetchBuilder()
+    .withLogger(logger) // That's it!
+    .build();
 
-- Automatic context propagation (correlation IDs, user agents)
-- Structured logging integration
+// In Service A
+logger.info('Starting user flow'); // Correlation ID: abc-123
+const user = await api('/users/123'); // Correlation ID sent as header
+
+// In Service B (receiving the request)
+// The correlation ID is automatically extracted and logs are linked!
+```
+
+### Track Every Request with Context
+
+```typescript
+const api = new FetchBuilder()
+    .withLogger(logger)
+    .withHooks({
+        postResponseSuccess: (url, init, response) => {
+            // Logger automatically captures:
+            // - Correlation ID
+            // - Request method & URL
+            // - Response status
+            // - Duration
+            // - Any errors with full context
+            logger.info('API request completed', {
+                endpoint: url.pathname,
+                status: response.status,
+            });
+            return response;
+        },
+    })
+    .build();
+```
+
+### Debug Production Issues Faster
+
+When something goes wrong, you'll have the complete story:
+
+```typescript
+try {
+    const response = await api('/flaky-endpoint');
+} catch (error) {
+    // Logger captures the entire request lifecycle:
+    // - Initial request with headers
+    // - Each retry attempt
+    // - Circuit breaker state changes
+    // - Final error with full stack trace
+    logger.error('Request failed after retries', error);
+}
+
+// In your logs:
+// {
+//   "correlationId": "abc-123",
+//   "message": "Request failed after retries",
+//   "error": {
+//     "attempts": 3,
+//     "lastError": "TimeoutError",
+//     "circuitState": "open"
+//   },
+//   "callerContext": {
+//     "stack": ["/src/services/UserService.ts:42:16"]
+//   }
+// }
+```
 
 ### Examples
 
@@ -540,36 +692,47 @@ const response = await fetch('https://api.example.com/users/123');
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
+import { AwsServerLogger } from '@smooai/logger/AwsServerLogger';
 import { z } from 'zod';
 
-// Create a custom logger that implements the LoggerInterface
-const customLogger = {
-    debug: (message: string, ...args: any[]) => {
-        console.debug(`[DEBUG] ${message}`, ...args);
-    },
-    info: (message: string, ...args: any[]) => {
-        console.info(`[INFO] ${message}`, ...args);
-    },
-    warn: (message: string, ...args: any[]) => {
-        console.warn(`[WARN] ${message}`, ...args);
-    },
-    error: (error: Error | unknown, message: string, ...args: any[]) => {
-        console.error(`[ERROR] ${message}`, error, ...args);
-    },
-};
+// Use @smooai/logger for automatic context and correlation
+const logger = new AwsServerLogger({
+    name: 'MyAPI',
+    prettyPrint: true, // Human-readable logs in development
+});
 
-// Create a fetch instance with the custom logger
+// Create a fetch instance with the logger
 const fetch = new FetchBuilder(
     z.object({
         id: z.string(),
         name: z.string(),
     }),
 )
-    .withLogger(customLogger)
+    .withLogger(logger)
     .build();
 
-// All requests will now use your custom logger
+// All requests now include:
+// - Correlation IDs that flow across services
+// - Automatic performance tracking
+// - Full error context with stack traces
+// - Request/response details
 const response = await fetch('https://api.example.com/users/123');
+
+// Or bring your own logger that implements LoggerInterface
+const customLogger = {
+    debug: (message: string, ...args: any[]) => {
+        /* ... */
+    },
+    info: (message: string, ...args: any[]) => {
+        /* ... */
+    },
+    warn: (message: string, ...args: any[]) => {
+        /* ... */
+    },
+    error: (error: Error | unknown, message: string, ...args: any[]) => {
+        /* ... */
+    },
+};
 ```
 
 <p align="right">(<a href="#examples">back to examples</a>)</p>
