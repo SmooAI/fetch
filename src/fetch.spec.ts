@@ -465,7 +465,7 @@ describe('Test fetch', () => {
             }
 
             expect(error).toBeDefined();
-            expect(error!.message).toContain('Expected string, received number at "id"');
+            expect(error!.message).toContain('Invalid input: expected string, received number at "id"');
         });
 
         test('Test multiple schema validation errors', async () => {
@@ -498,10 +498,10 @@ describe('Test fetch', () => {
             }
 
             expect(error).toBeDefined();
-            expect(error!.message).toContain('1. Expected string, received number at "id"');
-            expect(error!.message).toContain('2. Expected string, received number at "name"');
-            expect(error!.message).toContain('3. Expected number, received string at "age"');
-            expect(error!.message).toContain('4. Invalid email at "email"');
+            expect(error!.message).toContain('1. Invalid input: expected string, received number at "id"');
+            expect(error!.message).toContain('2. Invalid input: expected string, received number at "name"');
+            expect(error!.message).toContain('3. Invalid input: expected number, received string at "age"');
+            expect(error!.message).toContain('4. Invalid email address at "email"');
         });
 
         test('Test schema validation with nested objects', async () => {
