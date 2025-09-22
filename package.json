@@ -41,6 +41,7 @@
         "dist/**"
     ],
     "scripts": {
+        "aibranch": "pnpm generate-git-branch",
         "build": "pnpm tsup",
         "check-all": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
         "ci:publish": "pnpm build && pnpm changeset publish",
@@ -55,8 +56,8 @@
     },
     "dependencies": {
         "@faker-js/faker": "^9.6.0",
-        "@smooai/logger": "^3.1.1",
-        "@smooai/utils": "^1.3.1",
+        "@smooai/logger": "^3.1.2",
+        "@smooai/utils": "^1.3.2",
         "@standard-schema/spec": "^1.0.0",
         "@standard-schema/utils": "^0.3.0",
         "lodash.merge": "^4.6.2",
