@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 2.1.1
+
+### Patch Changes
+
+- 0f1a840: Update @smooai/logger and other smoo dependencies.
+
 ## 2.1.0
 
 ### Minor Changes
