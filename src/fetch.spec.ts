@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
-import { ContextHeader } from '@smooai/logger/AwsServerLogger';
-import sleep from '@smooai/utils/utils/sleep';
 import { TimeoutError } from 'mollitia';
 import { beforeEach, describe, expect, expectTypeOf, MockedFunction, test, vi } from 'vitest';
 import { z } from 'zod';
+/* eslint-disable @typescript-eslint/no-explicit-any -- ok*/
+import { ContextHeader } from '@smooai/logger/AwsServerLogger';
+import sleep from '@smooai/utils/utils/sleep';
 import fetch, { DEFAULT_RATE_LIMIT_RETRY_OPTIONS, FetchBuilder, HTTPResponseError, RequestInfo, RequestInitWithOptions, Response, RetryError } from './fetch';
 
 const URL_TO_USE = 'https://smoo.ai';

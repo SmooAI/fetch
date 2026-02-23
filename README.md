@@ -785,7 +785,6 @@ Contributions are welcome! This project uses [changesets](https://github.com/cha
     ```
 
     This will prompt you to:
-
     - Choose the type of version bump (patch, minor, or major)
     - Provide a description of the changes
 

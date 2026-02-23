@@ -91,7 +91,6 @@
 ### Minor Changes
 
 - 7cbaa0b: Add lifecycle hooks to fetch implementation and update README
-
     - Introduced lifecycle hooks: pre-request, post-response success, and post-response error, allowing for enhanced request and response handling.
     - Updated README with detailed descriptions of lifecycle hooks and examples demonstrating their usage.
     - Refactored fetch implementation to integrate hooks, improving flexibility and error handling capabilities.
@@ -99,7 +98,6 @@
 ### Patch Changes
 
 - 7cbaa0b: Enhance README and fetch implementation with new options
-
     - Added detailed section on opinionated defaults for the fetch function, including retry configuration, timeout settings, and rate limit retry options.
     - Updated examples to demonstrate usage of new options in fetch requests.
     - Introduced `RequestInitWithOptions` type to support additional options in fetch requests, within the same fetch argument footprint.
@@ -112,7 +110,6 @@
 ### Minor Changes
 
 - 07df8fe: Enhance fetch functionality with schema validation
-
     - Enhanced fetch implementation with a FetchBuilder class for better configuration options, including schema validation, retry, and rate limiting.
     - Improved error handling and logging capabilities in the fetch module.
     - Updated README to reflect new features and usage examples.
