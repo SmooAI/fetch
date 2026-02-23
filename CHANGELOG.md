@@ -1,5 +1,12 @@
 # @smooai/fetch
 
+## 2.1.2
+
+### Patch Changes
+
+- b9768f8: Update @smooai/logger and other smoo dependencies.
+- a369ec7: Update SmooAI Packages link in README to point to smoo.ai/open-source for consistency across all SmooAI packages.
+
 ## 2.1.1
 
 ### Patch Changes
