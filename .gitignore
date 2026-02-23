@@ -44,3 +44,15 @@ yarn.lock
 package-lock.json
 
 .envrc
+# Rust build artifacts
+rust/fetch/target/
+
+# Python build artifacts
+python/dist/
+python/.venv/
+python/uv.lock
+__pycache__/
+*.pyc
+
+# Go
+go/fetch/go.sum
