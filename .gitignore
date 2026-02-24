@@ -55,4 +55,3 @@ __pycache__/
 *.pyc
 
 # Go
-go/fetch/go.sum

@@ -77,9 +77,9 @@ impl FetchError {
     /// Extract the Retry-After header value in seconds, if present.
     pub fn retry_after_secs(&self) -> Option<u64> {
         match self {
-            FetchError::HttpResponse { headers, .. } => {
-                headers.get("retry-after").and_then(|v| v.parse::<u64>().ok())
-            }
+            FetchError::HttpResponse { headers, .. } => headers
+                .get("retry-after")
+                .and_then(|v| v.parse::<u64>().ok()),
             _ => None,
         }
     }
@@ -177,8 +177,7 @@ mod tests {
 
     #[test]
     fn test_extract_error_string_with_error_object() {
-        let body =
-            r#"{"error":{"type":"ERROR_TYPE","code":125,"message":"Error message"}}"#;
+        let body = r#"{"error":{"type":"ERROR_TYPE","code":125,"message":"Error message"}}"#;
         let result = extract_error_string(body, true);
         assert!(result.contains("ERROR_TYPE"));
         assert!(result.contains("125"));

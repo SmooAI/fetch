@@ -48,10 +48,9 @@ async fn test_pre_request_hook_modifies_url() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
     assert_eq!(
@@ -98,10 +97,9 @@ async fn test_pre_request_hook_adds_headers() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
 }
@@ -135,10 +133,9 @@ async fn test_pre_request_hook_returns_none_passes_through() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
 }
@@ -179,10 +176,9 @@ async fn test_post_response_success_hook_modifies_response() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
     assert_eq!(
@@ -223,10 +219,9 @@ async fn test_post_response_success_hook_returns_none_passes_through() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
     assert_eq!(
@@ -376,10 +371,9 @@ async fn test_all_hooks_together() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
-            .await
-            .unwrap();
+    let response = client::fetch::<TestData>(&url, init, Some(options), None, None, Some(&hooks))
+        .await
+        .unwrap();
 
     assert!(response.ok);
     assert_eq!(

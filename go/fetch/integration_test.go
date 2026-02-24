@@ -390,7 +390,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	defer server.Close()
 
 	client := NewClientBuilder().
-		WithTimeout(5 * time.Second).
+		WithTimeout(5*time.Second).
 		WithRetry(&RetryOptions{
 			Attempts:        2,
 			InitialInterval: 10 * time.Millisecond,

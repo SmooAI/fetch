@@ -155,9 +155,7 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
     let operation = |_attempt: u32| {
         let url = url_clone.clone();
         let init = init_clone.clone();
-        async move {
-            timeout::with_timeout(timeout_ms, do_single_request::<T>(&url, &init)).await
-        }
+        async move { timeout::with_timeout(timeout_ms, do_single_request::<T>(&url, &init)).await }
     };
 
     // 4. Execute with retry (or just once if no retry options)
@@ -165,11 +163,7 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         retry::execute_with_retry(retry_opts, operation).await
     } else {
         // No retry, just execute once with timeout
-        timeout::with_timeout(
-            timeout_ms,
-            do_single_request::<T>(&url, &init),
-        )
-        .await
+        timeout::with_timeout(timeout_ms, do_single_request::<T>(&url, &init)).await
     };
 
     // Record success/failure with circuit breaker

@@ -52,7 +52,10 @@ impl<T> std::fmt::Debug for LifecycleHooks<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LifecycleHooks")
             .field("pre_request", &self.pre_request.is_some())
-            .field("post_response_success", &self.post_response_success.is_some())
+            .field(
+                "post_response_success",
+                &self.post_response_success.is_some(),
+            )
             .field("post_response_error", &self.post_response_error.is_some())
             .finish()
     }

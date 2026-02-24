@@ -121,13 +121,15 @@ async fn test_failed_request_404() {
         retry: None,
     };
 
-    let result = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await;
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
     match &err {
-        FetchError::HttpResponse { status, message, .. } => {
+        FetchError::HttpResponse {
+            status, message, ..
+        } => {
             assert_eq!(*status, 404);
             assert!(message.contains("Not found"));
         }
@@ -165,15 +167,27 @@ async fn test_error_response_with_type_code_message() {
         retry: None,
     };
 
-    let result = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await;
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
     let err_string = err.to_string();
-    assert!(err_string.contains("ERROR_TYPE"), "Error should contain type: {}", err_string);
-    assert!(err_string.contains("125"), "Error should contain code: {}", err_string);
-    assert!(err_string.contains("Error message"), "Error should contain message: {}", err_string);
+    assert!(
+        err_string.contains("ERROR_TYPE"),
+        "Error should contain type: {}",
+        err_string
+    );
+    assert!(
+        err_string.contains("125"),
+        "Error should contain code: {}",
+        err_string
+    );
+    assert!(
+        err_string.contains("Error message"),
+        "Error should contain message: {}",
+        err_string
+    );
 }
 
 #[tokio::test]
@@ -200,10 +214,9 @@ async fn test_non_json_response() {
         retry: None,
     };
 
-    let response =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-            .await
-            .unwrap();
+    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
+        .await
+        .unwrap();
 
     assert!(response.ok);
     assert_eq!(response.status, 200);
@@ -279,7 +292,11 @@ async fn test_schema_validation_error_on_type_mismatch() {
     assert!(result.is_err());
     match result.unwrap_err() {
         FetchError::SchemaValidation { message } => {
-            assert!(message.contains("invalid type"), "Expected type error: {}", message);
+            assert!(
+                message.contains("invalid type"),
+                "Expected type error: {}",
+                message
+            );
         }
         other => panic!("Expected SchemaValidation error, got {:?}", other),
     }

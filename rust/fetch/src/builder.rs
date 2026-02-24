@@ -148,12 +148,17 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
 
     /// Build the configured fetch client.
     pub fn build(self) -> FetchClient<T> {
-        let rate_limiter = self.container_options.rate_limit.map(|rl| {
-            SlidingWindowRateLimiter::new(rl.limit_for_period, rl.limit_period_ms)
-        });
+        let rate_limiter = self
+            .container_options
+            .rate_limit
+            .map(|rl| SlidingWindowRateLimiter::new(rl.limit_for_period, rl.limit_period_ms));
 
         let circuit_breaker = self.container_options.circuit_breaker.map(|cb| {
-            CircuitBreaker::new(cb.failure_threshold, cb.success_threshold, cb.open_state_delay_ms)
+            CircuitBreaker::new(
+                cb.failure_threshold,
+                cb.success_threshold,
+                cb.open_state_delay_ms,
+            )
         });
 
         FetchClient {

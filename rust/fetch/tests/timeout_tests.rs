@@ -66,8 +66,8 @@ async fn test_request_times_out() {
         retry: None,
     };
 
-    let result = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await;
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -96,10 +96,7 @@ async fn test_timeout_unit_function() {
 
 #[tokio::test]
 async fn test_timeout_unit_function_success() {
-    let result = smooai_fetch::timeout::with_timeout(1000, async {
-        Ok::<_, FetchError>(42)
-    })
-    .await;
+    let result = smooai_fetch::timeout::with_timeout(1000, async { Ok::<_, FetchError>(42) }).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 42);

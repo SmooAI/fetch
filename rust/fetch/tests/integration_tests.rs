@@ -318,7 +318,9 @@ async fn test_convenience_fetch_function() {
         ..Default::default()
     };
 
-    let response = smooai_fetch::fetch::<ApiResponse>(&url, init).await.unwrap();
+    let response = smooai_fetch::fetch::<ApiResponse>(&url, init)
+        .await
+        .unwrap();
     assert!(response.ok);
     assert_eq!(response.status, 200);
     assert_eq!(

@@ -184,8 +184,8 @@ async fn test_retry_exhausted() {
         }),
     };
 
-    let result = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await;
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -238,8 +238,8 @@ async fn test_non_retryable_error_not_retried() {
         }),
     };
 
-    let result = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await;
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
 
     assert!(result.is_err());
     // 404 is not retryable, so only 1 call should be made

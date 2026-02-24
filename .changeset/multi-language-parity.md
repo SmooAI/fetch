@@ -1,5 +1,5 @@
 ---
-"@smooai/fetch": minor
+'@smooai/fetch': major
 ---
 
 Implement fetch library in Python, Rust, and Go
