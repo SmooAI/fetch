@@ -2,11 +2,14 @@
 name = "smooai-fetch"
 version = "2.1.2"
 description = "A resilient HTTP fetch client with retries, timeouts, rate limiting, and circuit breaking."
-readme = "README.md"
+# readme = "README.md"
 authors = [{ name = "SmooAI", email = "brent@smooai.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.12"
-dependencies = ["httpx>=0.27.0"]
+dependencies = [
+  "httpx>=0.27.0",
+  "pydantic>=2.0.0",
+]
 classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
@@ -29,7 +32,14 @@ build-backend = "hatchling.build"
 packages = ["src/smooai_fetch"]
 
 [dependency-groups]
-dev = ["pytest>=8.0.0", "ruff>=0.11.0", "basedpyright>=1.0.0", "poethepoet>=0.29.0"]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.24.0",
+  "respx>=0.22.0",
+  "ruff>=0.11.0",
+  "basedpyright>=1.0.0",
+  "poethepoet>=0.29.0",
+]
 
 [tool.poe.tasks]
 lint = "ruff check src/ tests/"
@@ -50,6 +60,7 @@ sequence = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py312"
@@ -57,6 +68,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["UP046", "UP047"]  # Keep TypeVar/Generic style for broader compatibility
 
 [tool.basedpyright]
 pythonVersion = "3.12"
