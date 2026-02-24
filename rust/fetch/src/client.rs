@@ -98,7 +98,7 @@ async fn do_single_request<T: DeserializeOwned>(
 /// 3. Circuit breaker check (if configured)
 /// 4. Retry wrapper (if configured)
 ///    4a. Timeout wrapper (if configured)
-///        4b. Actual HTTP request
+///    4b. Actual HTTP request
 /// 5. Post-response hooks (success or error)
 ///
 /// # Type Parameters

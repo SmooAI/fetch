@@ -40,9 +40,7 @@ pub fn calculate_backoff(attempt: u32, options: &RetryOptions) -> u64 {
     }
     let mut rng = rand::thread_rng();
     let jitter_factor = 1.0 + rng.gen_range(-jitter..jitter);
-    let delay = (capped * jitter_factor).max(0.0) as u64;
-
-    delay
+    (capped * jitter_factor).max(0.0) as u64
 }
 
 /// Execute a future-returning closure with retry logic.

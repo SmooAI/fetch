@@ -55,12 +55,12 @@ Check out other SmooAI packages at [smoo.ai/open-source](https://smoo.ai/open-so
 
 @smooai/fetch is available as native implementations in **TypeScript**, **Python**, **Rust**, and **Go** — each built with idiomatic patterns for its ecosystem.
 
-| Language | Package | Install |
-|----------|---------|---------|
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch` |
-| Python | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/) | `pip install smooai-fetch` |
-| Rust | [`smooai-fetch`](https://crates.io/crates/smooai-fetch) | `cargo add smooai-fetch` |
-| Go | `github.com/SmooAI/fetch/go/fetch` | `go get github.com/SmooAI/fetch/go/fetch` |
+| Language   | Package                                                        | Install                                   |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
+| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
 
 Language-specific source code lives in the [`python/`](./python/), [`rust/`](./rust/), and [`go/`](./go/) directories.
 

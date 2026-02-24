@@ -65,8 +65,9 @@ pub struct FetchOptions {
 }
 
 /// HTTP method type.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Method {
+    #[default]
     GET,
     POST,
     PUT,
@@ -87,12 +88,6 @@ impl std::fmt::Display for Method {
             Method::HEAD => write!(f, "HEAD"),
             Method::OPTIONS => write!(f, "OPTIONS"),
         }
-    }
-}
-
-impl Default for Method {
-    fn default() -> Self {
-        Method::GET
     }
 }
 
