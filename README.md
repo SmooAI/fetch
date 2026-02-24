@@ -51,6 +51,19 @@ Check out other SmooAI packages at [smoo.ai/open-source](https://smoo.ai/open-so
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SmooAI/fetch/release.yml?style=for-the-badge)
 ![GitHub Repo stars](https://img.shields.io/github/stars/SmooAI/fetch?style=for-the-badge)
 
+### Multi-Language Support
+
+@smooai/fetch is available as native implementations in **TypeScript**, **Python**, **Rust**, and **Go** — each built with idiomatic patterns for its ecosystem.
+
+| Language | Package | Install |
+|----------|---------|---------|
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch` |
+| Python | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/) | `pip install smooai-fetch` |
+| Rust | [`smooai-fetch`](https://crates.io/crates/smooai-fetch) | `cargo add smooai-fetch` |
+| Go | `github.com/SmooAI/fetch/go/fetch` | `go get github.com/SmooAI/fetch/go/fetch` |
+
+Language-specific source code lives in the [`python/`](./python/), [`rust/`](./rust/), and [`go/`](./go/) directories.
+
 ### Why @smooai/fetch?
 
 Ever had your app crash because an API was down for 2 seconds? Or watched your users stare at loading spinners because a third-party service hit its rate limit? Traditional fetch gives you the request, but leaves you to handle the reality of network failures.
