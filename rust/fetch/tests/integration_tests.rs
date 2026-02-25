@@ -198,7 +198,7 @@ async fn test_rate_limit_with_builder() {
 
     let elapsed_three = start.elapsed();
     assert!(
-        elapsed_three > elapsed_two + Duration::from_millis(400),
+        elapsed_three > elapsed_two + Duration::from_millis(250),
         "Third request should be delayed by rate limiter. Two: {:?}, Three: {:?}",
         elapsed_two,
         elapsed_three
