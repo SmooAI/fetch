@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 3.0.1
+
+### Patch Changes
+
+- ab17b63: Add Python, Rust, and Go language-specific READMEs with idiomatic usage examples, cross-language install table, and API reference.
+
 ## 3.0.0
 
 ### Major Changes
