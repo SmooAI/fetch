@@ -29,15 +29,21 @@
             "require": "./dist/index.js",
             "default": "./dist/index.js"
         },
-        "./*": {
-            "types": "./dist/*.d.ts",
-            "import": "./dist/*.mjs",
-            "require": "./dist/*.js"
+        "./browser": {
+            "types": "./dist/browser/index.d.ts",
+            "import": "./dist/browser/index.mjs",
+            "require": "./dist/browser/index.js",
+            "default": "./dist/browser/index.js"
         },
         "./browser/*": {
             "types": "./dist/browser/*.d.ts",
             "import": "./dist/browser/*.mjs",
             "require": "./dist/browser/*.js"
+        },
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "import": "./dist/*.mjs",
+            "require": "./dist/*.js"
         }
     },
     "publishConfig": {
@@ -98,6 +104,7 @@
         "oxfmt": "^0.28.0",
         "oxlint": "^0.16.0",
         "tsup": "^8.4.0",
+        "typescript": "^5.8.2",
         "vite": "^6.2.4",
         "vite-node": "^3.1.1",
         "vite-tsconfig-paths": "^5.1.4",

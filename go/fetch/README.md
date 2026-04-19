@@ -61,12 +61,12 @@ Ever had a Go microservice pile up goroutines because a downstream API was down?
 go get github.com/SmooAI/fetch/go/fetch
 ```
 
-| Language   | Package | Install |
-| ---------- | ------- | ------- |
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch` |
-| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/) | `pip install smooai-fetch` |
-| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch) | `cargo add smooai-fetch` |
-| Go         | `github.com/SmooAI/fetch/go/fetch` | `go get github.com/SmooAI/fetch/go/fetch` |
+| Language   | Package                                                        | Install                                   |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
+| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
 
 ## The Power of Resilient Fetching
 
@@ -332,32 +332,32 @@ Out of the box, smooai-fetch is configured for the real world:
 
 ### Top-Level Generic Functions
 
-| Function | Description |
-| -------- | ----------- |
-| `Fetch[T](ctx, client, method, url, body, opts)` | Generic request with any method |
-| `Get[T](ctx, client, url, opts)` | GET request |
-| `Post[T](ctx, client, url, body, opts)` | POST request |
-| `Put[T](ctx, client, url, body, opts)` | PUT request |
-| `Patch[T](ctx, client, url, body, opts)` | PATCH request |
-| `Delete[T](ctx, client, url, opts)` | DELETE request |
-| `SimpleGet(ctx, client, url, opts)` | GET with untyped `any` response |
-| `SimplePost(ctx, client, url, body, opts)` | POST with untyped `any` response |
+| Function                                         | Description                      |
+| ------------------------------------------------ | -------------------------------- |
+| `Fetch[T](ctx, client, method, url, body, opts)` | Generic request with any method  |
+| `Get[T](ctx, client, url, opts)`                 | GET request                      |
+| `Post[T](ctx, client, url, body, opts)`          | POST request                     |
+| `Put[T](ctx, client, url, body, opts)`           | PUT request                      |
+| `Patch[T](ctx, client, url, body, opts)`         | PATCH request                    |
+| `Delete[T](ctx, client, url, opts)`              | DELETE request                   |
+| `SimpleGet(ctx, client, url, opts)`              | GET with untyped `any` response  |
+| `SimplePost(ctx, client, url, body, opts)`       | POST with untyped `any` response |
 
 ### `ClientBuilder` Methods
 
-| Method | Description |
-| ------ | ----------- |
-| `NewClientBuilder()` | Create builder with default retry + timeout |
-| `.WithHTTPClient(c)` | Use a custom `*http.Client` |
-| `.WithBaseHeaders(headers)` | Set headers included in every request |
-| `.WithTimeout(duration)` | Set request timeout |
-| `.WithNoTimeout()` | Disable timeout |
-| `.WithRetry(opts)` | Configure retry behavior |
-| `.WithNoRetry()` | Disable retries |
-| `.WithRateLimit(maxRequests, period)` | Configure sliding-window rate limiter |
-| `.WithCircuitBreaker(name, opts)` | Configure circuit breaker |
-| `.WithHooks(hooks)` | Set lifecycle hooks |
-| `.Build()` | Build the `*Client` |
+| Method                                | Description                                 |
+| ------------------------------------- | ------------------------------------------- |
+| `NewClientBuilder()`                  | Create builder with default retry + timeout |
+| `.WithHTTPClient(c)`                  | Use a custom `*http.Client`                 |
+| `.WithBaseHeaders(headers)`           | Set headers included in every request       |
+| `.WithTimeout(duration)`              | Set request timeout                         |
+| `.WithNoTimeout()`                    | Disable timeout                             |
+| `.WithRetry(opts)`                    | Configure retry behavior                    |
+| `.WithNoRetry()`                      | Disable retries                             |
+| `.WithRateLimit(maxRequests, period)` | Configure sliding-window rate limiter       |
+| `.WithCircuitBreaker(name, opts)`     | Configure circuit breaker                   |
+| `.WithHooks(hooks)`                   | Set lifecycle hooks                         |
+| `.Build()`                            | Build the `*Client`                         |
 
 ### Error Handling
 

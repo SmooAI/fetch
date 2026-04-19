@@ -72,12 +72,12 @@ or via cargo:
 cargo add smooai-fetch
 ```
 
-| Language   | Package | Install |
-| ---------- | ------- | ------- |
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch` |
-| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/) | `pip install smooai-fetch` |
-| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch) | `cargo add smooai-fetch` |
-| Go         | `github.com/SmooAI/fetch/go/fetch` | `go get github.com/SmooAI/fetch/go/fetch` |
+| Language   | Package                                                        | Install                                   |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
+| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
 
 ## The Power of Resilient Fetching
 
@@ -312,20 +312,20 @@ let response = fetch::<MyType>("https://api.example.com/data", init).await?;
 
 ### `FetchBuilder<T>` Methods
 
-| Method | Description |
-| ------ | ----------- |
-| `FetchBuilder::new()` | Create builder with default retry + timeout |
-| `.with_timeout(ms)` | Set timeout in milliseconds |
-| `.without_timeout()` | Disable timeout |
-| `.with_retry(options)` | Configure retry behavior |
-| `.without_retry()` | Disable retries |
-| `.with_rate_limit(limit, period_ms)` | Configure sliding-window rate limiter |
-| `.with_circuit_breaker(fail, success, delay_ms)` | Configure circuit breaker |
-| `.with_init(init)` | Set default headers/method for all requests |
-| `.with_pre_request_hook(hook)` | Hook called before each request |
-| `.with_post_response_success_hook(hook)` | Hook called on successful response |
-| `.with_post_response_error_hook(hook)` | Hook called on error response |
-| `.build()` | Build the `FetchClient<T>` |
+| Method                                           | Description                                 |
+| ------------------------------------------------ | ------------------------------------------- |
+| `FetchBuilder::new()`                            | Create builder with default retry + timeout |
+| `.with_timeout(ms)`                              | Set timeout in milliseconds                 |
+| `.without_timeout()`                             | Disable timeout                             |
+| `.with_retry(options)`                           | Configure retry behavior                    |
+| `.without_retry()`                               | Disable retries                             |
+| `.with_rate_limit(limit, period_ms)`             | Configure sliding-window rate limiter       |
+| `.with_circuit_breaker(fail, success, delay_ms)` | Configure circuit breaker                   |
+| `.with_init(init)`                               | Set default headers/method for all requests |
+| `.with_pre_request_hook(hook)`                   | Hook called before each request             |
+| `.with_post_response_success_hook(hook)`         | Hook called on successful response          |
+| `.with_post_response_error_hook(hook)`           | Hook called on error response               |
+| `.build()`                                       | Build the `FetchClient<T>`                  |
 
 ### Error Handling
 
