@@ -167,11 +167,11 @@ func TestExecuteWithRetry_OnRejectionStopsRetry(t *testing.T) {
 	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
 		Attempts:        3,
 		InitialInterval: time.Millisecond,
-		OnRejection: func(err error, attempt int) (bool, time.Duration) {
-			if err == nonRetryableErr {
-				return false, 0
+		OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+			if errors.Is(rc.LastError, nonRetryableErr) {
+				return RetryAbort, 0
 			}
-			return true, 0
+			return RetryDefault, 0
 		},
 	}, func(ctx context.Context) (string, error) {
 		calls++
@@ -180,7 +180,7 @@ func TestExecuteWithRetry_OnRejectionStopsRetry(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if err != nonRetryableErr {
+	if !errors.Is(err, nonRetryableErr) {
 		t.Errorf("expected nonRetryableErr, got %v", err)
 	}
 	if calls != 1 {
@@ -194,8 +194,8 @@ func TestExecuteWithRetry_OnRejectionCustomDelay(t *testing.T) {
 	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
 		Attempts:        1,
 		InitialInterval: 10 * time.Second, // very long default
-		OnRejection: func(err error, attempt int) (bool, time.Duration) {
-			return true, 10 * time.Millisecond // override to short delay
+		OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+			return RetryWithDelay, 10 * time.Millisecond // override to short delay
 		},
 	}, func(ctx context.Context) (string, error) {
 		calls++
@@ -255,5 +255,140 @@ func TestExecuteWithRetry_ZeroAttempts(t *testing.T) {
 	if _, ok := err.(*RetryError); ok {
 		// Actually with our implementation 1 total attempt still wraps in RetryError
 		// This is acceptable behavior
+	}
+}
+
+// TestExecuteWithRetry_FastFirst verifies that FastFirst=true makes the first
+// retry fire immediately, bypassing the configured InitialInterval.
+func TestExecuteWithRetry_FastFirst(t *testing.T) {
+	calls := 0
+	start := time.Now()
+	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
+		Attempts:        1,
+		InitialInterval: 2 * time.Second, // very long so non-fast first would be obvious
+		Factor:          1.0,
+		FastFirst:       true,
+	}, func(ctx context.Context) (string, error) {
+		calls++
+		if calls < 2 {
+			return "", errors.New("first attempt fails")
+		}
+		return "ok", nil
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("expected 2 calls, got %d", calls)
+	}
+	// The first retry should fire with ~0 delay; allow generous headroom for CI.
+	if elapsed > 250*time.Millisecond {
+		t.Errorf("expected FastFirst retry to be near-instant, took %v", elapsed)
+	}
+}
+
+// TestExecuteWithRetry_OnRejectionAbort verifies RetryAbort stops the loop.
+func TestExecuteWithRetry_OnRejectionAbort(t *testing.T) {
+	calls := 0
+	bombErr := errors.New("boom")
+	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
+		Attempts:        5,
+		InitialInterval: time.Millisecond,
+		OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+			return RetryAbort, 0
+		},
+	}, func(ctx context.Context) (string, error) {
+		calls++
+		return "", bombErr
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, bombErr) {
+		t.Errorf("expected bombErr, got %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("expected 1 call (aborted after first), got %d", calls)
+	}
+}
+
+// TestExecuteWithRetry_OnRejectionWithDelay verifies RetryWithDelay uses the returned duration.
+func TestExecuteWithRetry_OnRejectionWithDelay(t *testing.T) {
+	calls := 0
+	start := time.Now()
+	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
+		Attempts:        1,
+		InitialInterval: 5 * time.Second, // very long; we expect the override to beat it
+		OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+			return RetryWithDelay, 17 * time.Millisecond
+		},
+	}, func(ctx context.Context) (string, error) {
+		calls++
+		if calls < 2 {
+			return "", errors.New("please retry me")
+		}
+		return "ok", nil
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("expected 2 calls, got %d", calls)
+	}
+	if elapsed < 17*time.Millisecond {
+		t.Errorf("expected at least 17ms delay, took %v", elapsed)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("expected short custom delay, took %v", elapsed)
+	}
+}
+
+// TestExecuteWithRetry_OnRejectionDefault verifies RetryDefault preserves the built-in backoff.
+func TestExecuteWithRetry_OnRejectionDefault(t *testing.T) {
+	calls := 0
+	seenAttempts := []int{}
+	seenElapsed := []time.Duration{}
+	start := time.Now()
+
+	_, err := ExecuteWithRetry(context.Background(), RetryOptions{
+		Attempts:        2,
+		InitialInterval: 20 * time.Millisecond,
+		Factor:          2.0,
+		JitterFraction:  0.0,
+		OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+			seenAttempts = append(seenAttempts, rc.Attempt)
+			seenElapsed = append(seenElapsed, rc.Elapsed)
+			return RetryDefault, 0
+		},
+	}, func(ctx context.Context) (string, error) {
+		calls++
+		return "", errors.New("always fail")
+	})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected RetryError")
+	}
+	if _, ok := err.(*RetryError); !ok {
+		t.Errorf("expected *RetryError, got %T", err)
+	}
+	if calls != 3 {
+		t.Errorf("expected 3 calls, got %d", calls)
+	}
+	// OnRejection is called between attempts (before retry 1 and retry 2) => 2 calls.
+	if len(seenAttempts) != 2 {
+		t.Fatalf("expected OnRejection called twice, got %d", len(seenAttempts))
+	}
+	if seenAttempts[0] != 1 || seenAttempts[1] != 2 {
+		t.Errorf("expected attempts [1,2], got %v", seenAttempts)
+	}
+	if seenElapsed[1] <= seenElapsed[0] {
+		t.Errorf("expected Elapsed to grow between attempts, got %v then %v", seenElapsed[0], seenElapsed[1])
+	}
+	// Backoff: CalculateBackoff(0) = 20ms; CalculateBackoff(1) = 40ms. Total >= 60ms.
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("expected default backoff (>=~60ms total), took %v", elapsed)
 	}
 }

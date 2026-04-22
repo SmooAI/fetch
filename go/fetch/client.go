@@ -19,6 +19,7 @@ type Client struct {
 	retry          *RetryOptions
 	timeout        *TimeoutOptions
 	rateLimiter    *SlidingWindowRateLimiter
+	rateLimitRetry *RateLimitRetryOptions
 	circuitBreaker *CircuitBreaker
 	hooks          *LifecycleHooks
 }
@@ -84,14 +85,24 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 		}
 	}
 
-	// Wrap with rate limiter if configured
+	// Wrap with rate limiter if configured. When WithRateLimitRetry has been set,
+	// rate-limit rejections are retried within a dedicated inner loop so they don't
+	// consume the main retry budget — matching the TypeScript container-options
+	// semantics where rateLimit.retry is distinct from the request-level retry.
 	if client.rateLimiter != nil {
 		inner := doRequest
+		rateLimitRetryOpts := client.rateLimitRetry
 		doRequest = func(ctx context.Context) (*FetchResponse[T], error) {
-			if err := client.rateLimiter.Allow(); err != nil {
-				return nil, err
+			gated := func(ctx context.Context) (*FetchResponse[T], error) {
+				if err := client.rateLimiter.Allow(); err != nil {
+					return nil, err
+				}
+				return inner(ctx)
 			}
-			return inner(ctx)
+			if rateLimitRetryOpts != nil && rateLimitRetryOpts.Attempts > 0 {
+				return ExecuteWithRetry(ctx, *rateLimitRetryOpts, gated)
+			}
+			return gated(ctx)
 		}
 	}
 

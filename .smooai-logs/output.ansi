@@ -1122,7 +1122,7 @@
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" retries failed after 2 retries[39m[22m",
-  "time": "[34m2026-04-21T16:54:20.617Z[39m",
+  "time": "[34m2026-04-22T19:27:04.043Z[39m",
   "error": "{}; HTTP Error Response: 501 undefined",
   "errorDetails": [
     {
@@ -1138,16 +1138,16 @@
         "ok": false,
         "status": 501
       },
-      "stack": "Error: {}; HTTP Error Response: 501 undefined\n    at doGlobalFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:295:11)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processImmediate (node:internal/timers:459:9)\n    at doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:330:16)\n    at /Users/brentrager/dev/smooai/fetch/src/fetch.spec.ts:99:7\n    at file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/@vitest+runner@3.1.1/node_modules/@vitest/runner/dist/index.js:595:20"
+      "stack": "Error: {}; HTTP Error Response: 501 undefined\n    at doGlobalFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:295:11)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processImmediate (node:internal/timers:459:9)\n    at doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:330:16)\n    at /Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:99:7\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/@vitest+runner@3.1.1/node_modules/@vitest/runner/dist/index.js:595:20"
     }
   ],
   "@message": "HTTP request \"GET https://smoo.ai\" retries failed after 2 retries",
-  "@timestamp": "2026-04-21T16:54:20.617Z",
+  "@timestamp": "2026-04-22T19:27:04.043Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:365:16)",
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:365:16)",
       "runNextTicks (node:internal/process/task_queues:65:5)"
     ]
   },
@@ -1155,7 +1155,7 @@
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "6ecb3aff-63b5-424d-ba02-be8f85c4ea06"
+          "X-Correlation-Id": "8446bb33-4d51-4c35-b859-31eaa2053c0e"
         },
         "hostname": "smoo.ai",
         "method": "GET",
@@ -1171,7 +1171,7 @@
       }
     }
   },
-  "correlationId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5",
+  "correlationId": "b78807d3-a43b-44fe-8ec5-937191b097a3",
   "http": {
     "request": {
     }
@@ -1181,38 +1181,38 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5",
-  "traceId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5"
+  "requestId": "b78807d3-a43b-44fe-8ec5-937191b097a3",
+  "traceId": "b78807d3-a43b-44fe-8ec5-937191b097a3"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms[39m[22m",
-  "time": "[34m2026-04-21T16:54:50.420Z[39m",
+  "time": "[34m2026-04-22T19:27:34.342Z[39m",
   "error": "{}; HTTP Error Response: 501 undefined; Timed out",
   "errorDetails": [
     {
       "message": "Timed out",
       "name": "Error",
-      "stack": "Error: Timed out\n    at file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34\n    at callTimer (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2249:25)\n    at doTickInner (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2852:30)\n    at doTick (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2933:21)\n    at Immediate.<anonymous> (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2953:30)\n    at processImmediate (node:internal/timers:491:21)"
+      "stack": "Error: Timed out\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34\n    at callTimer (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2249:25)\n    at doTickInner (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2852:30)\n    at doTick (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2933:21)\n    at Immediate.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2953:30)\n    at processImmediate (node:internal/timers:491:21)"
     }
   ],
   "@message": "HTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms",
-  "@timestamp": "2026-04-21T16:54:50.420Z",
+  "@timestamp": "2026-04-22T19:27:34.342Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:351:14)",
-      "/Users/brentrager/dev/smooai/fetch/src/fetch.spec.ts:170:7"
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:170:7"
     ]
   },
   "context": {
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "6ecb3aff-63b5-424d-ba02-be8f85c4ea06"
+          "X-Correlation-Id": "8446bb33-4d51-4c35-b859-31eaa2053c0e"
         },
         "hostname": "smoo.ai",
         "method": "GET",
@@ -1221,7 +1221,7 @@
       }
     }
   },
-  "correlationId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5",
+  "correlationId": "b78807d3-a43b-44fe-8ec5-937191b097a3",
   "http": {
     "request": {
     }
@@ -1231,38 +1231,38 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5",
-  "traceId": "a2a95608-39a3-4e3f-b1ae-b237a27c56e5"
+  "requestId": "b78807d3-a43b-44fe-8ec5-937191b097a3",
+  "traceId": "b78807d3-a43b-44fe-8ec5-937191b097a3"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms[39m[22m",
-  "time": "[34m2026-04-21T16:54:24.094Z[39m",
+  "time": "[34m2026-04-22T19:27:06.596Z[39m",
   "error": "Timed out",
   "errorDetails": [
     {
       "message": "Timed out",
       "name": "Error",
-      "stack": "Error: Timed out\n    at Timeout.<anonymous> (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34)\n    at listOnTimeout (node:internal/timers:594:17)\n    at processTimers (node:internal/timers:529:7)"
+      "stack": "Error: Timed out\n    at Timeout.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34)\n    at listOnTimeout (node:internal/timers:594:17)\n    at processTimers (node:internal/timers:529:7)"
     }
   ],
   "@message": "HTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms",
-  "@timestamp": "2026-04-21T16:54:24.094Z",
+  "@timestamp": "2026-04-22T19:27:06.596Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "V.doFetch [as func] (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:351:14)",
-      "/Users/brentrager/dev/smooai/fetch/src/fetch.integration.spec.ts:135:7"
+      "V.doFetch [as func] (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.integration.spec.ts:135:7"
     ]
   },
   "context": {
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "218345d4-51f9-43cf-8f38-5856df1cfdc1"
+          "X-Correlation-Id": "a8936aa1-fbfb-431b-aac9-d0c59408ecf2"
         },
         "hostname": "example.com",
         "method": "GET",
@@ -1271,7 +1271,7 @@
       }
     }
   },
-  "correlationId": "26580b2d-3f57-458e-bc53-5e602c74d701",
+  "correlationId": "f31c3c22-9274-4f80-8542-02edfbe48aa3",
   "http": {
     "request": {
     }
@@ -1281,15 +1281,15 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "26580b2d-3f57-458e-bc53-5e602c74d701",
-  "traceId": "26580b2d-3f57-458e-bc53-5e602c74d701"
+  "requestId": "f31c3c22-9274-4f80-8542-02edfbe48aa3",
+  "traceId": "f31c3c22-9274-4f80-8542-02edfbe48aa3"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" retries failed after 2 retries[39m[22m",
-  "time": "[34m2026-04-21T16:55:02.056Z[39m",
+  "time": "[34m2026-04-22T19:28:23.964Z[39m",
   "error": "{}; HTTP Error Response: 501 undefined",
   "errorDetails": [
     {
@@ -1305,16 +1305,16 @@
         "ok": false,
         "status": 501
       },
-      "stack": "Error: {}; HTTP Error Response: 501 undefined\n    at doGlobalFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:295:11)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processImmediate (node:internal/timers:459:9)\n    at doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:330:16)\n    at /Users/brentrager/dev/smooai/fetch/src/fetch.spec.ts:99:7\n    at file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/@vitest+runner@3.1.1/node_modules/@vitest/runner/dist/index.js:595:20"
+      "stack": "Error: {}; HTTP Error Response: 501 undefined\n    at doGlobalFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:295:11)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processImmediate (node:internal/timers:459:9)\n    at doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:330:16)\n    at /Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:99:7\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/@vitest+runner@3.1.1/node_modules/@vitest/runner/dist/index.js:595:20"
     }
   ],
   "@message": "HTTP request \"GET https://smoo.ai\" retries failed after 2 retries",
-  "@timestamp": "2026-04-21T16:55:02.056Z",
+  "@timestamp": "2026-04-22T19:28:23.964Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:365:16)",
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:365:16)",
       "runNextTicks (node:internal/process/task_queues:65:5)"
     ]
   },
@@ -1322,7 +1322,7 @@
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "a188a730-da56-4ef3-87a8-f9176ca18dc0"
+          "X-Correlation-Id": "5142c5d8-f409-46c5-9c6c-6649c1b41fa0"
         },
         "hostname": "smoo.ai",
         "method": "GET",
@@ -1338,7 +1338,7 @@
       }
     }
   },
-  "correlationId": "fffe3d77-9842-461c-aadc-b4466f5fcab4",
+  "correlationId": "fbe261d8-e374-4808-86e5-67f25faf8d2e",
   "http": {
     "request": {
     }
@@ -1348,38 +1348,38 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "fffe3d77-9842-461c-aadc-b4466f5fcab4",
-  "traceId": "fffe3d77-9842-461c-aadc-b4466f5fcab4"
+  "requestId": "fbe261d8-e374-4808-86e5-67f25faf8d2e",
+  "traceId": "fbe261d8-e374-4808-86e5-67f25faf8d2e"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms[39m[22m",
-  "time": "[34m2026-04-21T16:55:32.028Z[39m",
+  "time": "[34m2026-04-22T19:28:53.147Z[39m",
   "error": "{}; HTTP Error Response: 501 undefined; Timed out",
   "errorDetails": [
     {
       "message": "Timed out",
       "name": "Error",
-      "stack": "Error: Timed out\n    at file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34\n    at callTimer (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2249:25)\n    at doTickInner (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2852:30)\n    at doTick (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2933:21)\n    at Immediate.<anonymous> (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2953:30)\n    at processImmediate (node:internal/timers:491:21)"
+      "stack": "Error: Timed out\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34\n    at callTimer (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2249:25)\n    at doTickInner (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2852:30)\n    at doTick (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2933:21)\n    at Immediate.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2953:30)\n    at processImmediate (node:internal/timers:491:21)"
     }
   ],
   "@message": "HTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms",
-  "@timestamp": "2026-04-21T16:55:32.028Z",
+  "@timestamp": "2026-04-22T19:28:53.147Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "doFetch (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:351:14)",
-      "/Users/brentrager/dev/smooai/fetch/src/fetch.spec.ts:170:7"
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:170:7"
     ]
   },
   "context": {
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "a188a730-da56-4ef3-87a8-f9176ca18dc0"
+          "X-Correlation-Id": "5142c5d8-f409-46c5-9c6c-6649c1b41fa0"
         },
         "hostname": "smoo.ai",
         "method": "GET",
@@ -1388,7 +1388,7 @@
       }
     }
   },
-  "correlationId": "fffe3d77-9842-461c-aadc-b4466f5fcab4",
+  "correlationId": "fbe261d8-e374-4808-86e5-67f25faf8d2e",
   "http": {
     "request": {
     }
@@ -1398,38 +1398,38 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "fffe3d77-9842-461c-aadc-b4466f5fcab4",
-  "traceId": "fffe3d77-9842-461c-aadc-b4466f5fcab4"
+  "requestId": "fbe261d8-e374-4808-86e5-67f25faf8d2e",
+  "traceId": "fbe261d8-e374-4808-86e5-67f25faf8d2e"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
 {
   "msg": "[1m[32mHTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms[39m[22m",
-  "time": "[34m2026-04-21T16:55:05.128Z[39m",
+  "time": "[34m2026-04-22T19:28:26.742Z[39m",
   "error": "Timed out",
   "errorDetails": [
     {
       "message": "Timed out",
       "name": "Error",
-      "stack": "Error: Timed out\n    at Timeout.<anonymous> (file:///Users/brentrager/dev/smooai/fetch/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34)\n    at listOnTimeout (node:internal/timers:594:17)\n    at processTimers (node:internal/timers:529:7)"
+      "stack": "Error: Timed out\n    at Timeout.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34)\n    at listOnTimeout (node:internal/timers:594:17)\n    at processTimers (node:internal/timers:529:7)"
     }
   ],
   "@message": "HTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms",
-  "@timestamp": "2026-04-21T16:55:05.128Z",
+  "@timestamp": "2026-04-22T19:28:26.742Z",
   "LogLevel": "error",
   "callerContext": {
     "loggerName": "AwsServerLogger",
     "stack": [
-      "V.doFetch [as func] (/Users/brentrager/dev/smooai/fetch/src/fetch.ts:351:14)",
-      "/Users/brentrager/dev/smooai/fetch/src/fetch.integration.spec.ts:135:7"
+      "V.doFetch [as func] (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.integration.spec.ts:135:7"
     ]
   },
   "context": {
     "http": {
       "request": {
         "headers": {
-          "X-Correlation-Id": "602d537f-a6a5-48b7-8ad4-3b169f5d7431"
+          "X-Correlation-Id": "10a911b2-908d-463f-a3d0-7f8e113a0ea3"
         },
         "hostname": "example.com",
         "method": "GET",
@@ -1438,7 +1438,7 @@
       }
     }
   },
-  "correlationId": "da1da40b-6f69-4e2d-adf9-2c3f4c287317",
+  "correlationId": "61913112-0a3b-43a8-ad31-c9829e681a4e",
   "http": {
     "request": {
     }
@@ -1448,8 +1448,175 @@
   "level": 50,
   "name": "AwsServerLogger",
   "nodeEnv": "test",
-  "requestId": "da1da40b-6f69-4e2d-adf9-2c3f4c287317",
-  "traceId": "da1da40b-6f69-4e2d-adf9-2c3f4c287317"
+  "requestId": "61913112-0a3b-43a8-ad31-c9829e681a4e",
+  "traceId": "61913112-0a3b-43a8-ad31-c9829e681a4e"
+}
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+{
+  "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" retries failed after 2 retries[39m[22m",
+  "time": "[34m2026-04-22T19:29:51.976Z[39m",
+  "error": "{}; HTTP Error Response: 501 undefined",
+  "errorDetails": [
+    {
+      "message": "{}; HTTP Error Response: 501 undefined",
+      "name": "Error",
+      "response": {
+        "data": {
+        },
+        "dataString": "{}",
+        "headers": {
+        },
+        "isJson": true,
+        "ok": false,
+        "status": 501
+      },
+      "stack": "Error: {}; HTTP Error Response: 501 undefined\n    at doGlobalFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:295:11)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processImmediate (node:internal/timers:459:9)\n    at doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:330:16)\n    at /Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:99:7\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/@vitest+runner@3.1.1/node_modules/@vitest/runner/dist/index.js:595:20"
+    }
+  ],
+  "@message": "HTTP request \"GET https://smoo.ai\" retries failed after 2 retries",
+  "@timestamp": "2026-04-22T19:29:51.976Z",
+  "LogLevel": "error",
+  "callerContext": {
+    "loggerName": "AwsServerLogger",
+    "stack": [
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:365:16)",
+      "runNextTicks (node:internal/process/task_queues:65:5)"
+    ]
+  },
+  "context": {
+    "http": {
+      "request": {
+        "headers": {
+          "X-Correlation-Id": "d983bd87-5b11-4277-ac6a-23e12eb9181a"
+        },
+        "hostname": "smoo.ai",
+        "method": "GET",
+        "path": "/",
+        "queryString": ""
+      },
+      "response": {
+        "body": "{}",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "statusCode": 501
+      }
+    }
+  },
+  "correlationId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943",
+  "http": {
+    "request": {
+    }
+  },
+  "lambda": {
+  },
+  "level": 50,
+  "name": "AwsServerLogger",
+  "nodeEnv": "test",
+  "requestId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943",
+  "traceId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943"
+}
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+{
+  "msg": "[1m[32mHTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms[39m[22m",
+  "time": "[34m2026-04-22T19:30:21.745Z[39m",
+  "error": "{}; HTTP Error Response: 501 undefined; Timed out",
+  "errorDetails": [
+    {
+      "message": "Timed out",
+      "name": "Error",
+      "stack": "Error: Timed out\n    at file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34\n    at callTimer (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2249:25)\n    at doTickInner (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2852:30)\n    at doTick (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2933:21)\n    at Immediate.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/vitest@3.1.1_@types+node@22.13.10_msw@2.7.3_@types+node@22.13.10_typescript@5.8.2__yaml@2.7.0/node_modules/vitest/dist/chunks/vi.B-PuvDzu.js:2953:30)\n    at processImmediate (node:internal/timers:491:21)"
+    }
+  ],
+  "@message": "HTTP request \"GET https://smoo.ai\" timed out (Error) after 10000 ms",
+  "@timestamp": "2026-04-22T19:30:21.745Z",
+  "LogLevel": "error",
+  "callerContext": {
+    "loggerName": "AwsServerLogger",
+    "stack": [
+      "doFetch (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.spec.ts:170:7"
+    ]
+  },
+  "context": {
+    "http": {
+      "request": {
+        "headers": {
+          "X-Correlation-Id": "d983bd87-5b11-4277-ac6a-23e12eb9181a"
+        },
+        "hostname": "smoo.ai",
+        "method": "GET",
+        "path": "/",
+        "queryString": ""
+      }
+    }
+  },
+  "correlationId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943",
+  "http": {
+    "request": {
+    }
+  },
+  "lambda": {
+  },
+  "level": 50,
+  "name": "AwsServerLogger",
+  "nodeEnv": "test",
+  "requestId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943",
+  "traceId": "fcdb77a1-86d4-44e4-b07b-3cf4cf471943"
+}
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+{
+  "msg": "[1m[32mHTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms[39m[22m",
+  "time": "[34m2026-04-22T19:29:54.095Z[39m",
+  "error": "Timed out",
+  "errorDetails": [
+    {
+      "message": "Timed out",
+      "name": "Error",
+      "stack": "Error: Timed out\n    at Timeout.<anonymous> (file:///Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/node_modules/.pnpm/mollitia@0.1.1/node_modules/mollitia/dist/index.js:258:34)\n    at listOnTimeout (node:internal/timers:594:17)\n    at processTimers (node:internal/timers:529:7)"
+    }
+  ],
+  "@message": "HTTP request \"GET https://example.com/api/timeout\" timed out (Error) after 300 ms",
+  "@timestamp": "2026-04-22T19:29:54.095Z",
+  "LogLevel": "error",
+  "callerContext": {
+    "loggerName": "AwsServerLogger",
+    "stack": [
+      "V.doFetch [as func] (/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.ts:351:14)",
+      "/Users/brentrager/dev/smooai/fetch-SMOODEV-627-drift/src/fetch.integration.spec.ts:135:7"
+    ]
+  },
+  "context": {
+    "http": {
+      "request": {
+        "headers": {
+          "X-Correlation-Id": "18bff2e9-2c8b-40d7-835a-1fed104682dc"
+        },
+        "hostname": "example.com",
+        "method": "GET",
+        "path": "/api/timeout",
+        "queryString": ""
+      }
+    }
+  },
+  "correlationId": "929dde51-8d4c-4f59-bd24-e04d4ef58c36",
+  "http": {
+    "request": {
+    }
+  },
+  "lambda": {
+  },
+  "level": 50,
+  "name": "AwsServerLogger",
+  "nodeEnv": "test",
+  "requestId": "929dde51-8d4c-4f59-bd24-e04d4ef58c36",
+  "traceId": "929dde51-8d4c-4f59-bd24-e04d4ef58c36"
 }
 ----------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------
