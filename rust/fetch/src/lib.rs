@@ -62,7 +62,10 @@ pub use circuit_breaker::{CircuitBreaker, CircuitState};
 pub use error::FetchError;
 pub use rate_limit::SlidingWindowRateLimiter;
 pub use response::FetchResponse;
-pub use types::{FetchContainerOptions, FetchOptions, Method, RequestInit, RetryOptions};
+pub use types::{
+    FetchContainerOptions, FetchOptions, Method, RequestInit, RetryCallback, RetryContext,
+    RetryDecision, RetryOptions,
+};
 
 /// Convenience function: perform a single fetch with default options.
 ///

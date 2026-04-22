@@ -1,11 +1,61 @@
 //! Configuration types for the smooai-fetch client.
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::FetchError;
+
+/// Context passed to a [`RetryCallback`] before each retry attempt.
+///
+/// This mirrors the information available to the TypeScript `onRejection`
+/// callback in `@smooai/fetch`.
+#[derive(Debug)]
+pub struct RetryContext<'a> {
+    /// 1-based attempt number. `1` means the callback is being consulted
+    /// before the first retry (i.e. the initial request has already failed
+    /// once).
+    pub attempt: u32,
+    /// The most recent error, if any.
+    pub last_error: Option<&'a FetchError>,
+    /// The HTTP status code from the most recent error, if it was an
+    /// `HttpResponse` error.
+    pub last_status: Option<u16>,
+    /// Elapsed time since the retry loop started.
+    pub elapsed: Duration,
+}
+
+/// Decision returned by a [`RetryCallback`] that controls what the retry loop
+/// does next.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetryDecision {
+    /// Retry after the given delay, overriding the default exponential+jitter
+    /// backoff formula.
+    Retry {
+        /// Delay to wait before performing the retry.
+        delay: Duration,
+    },
+    /// Skip this retry attempt (no sleep, no request) and move on to the next
+    /// attempt in the loop.
+    Skip,
+    /// Abort retrying entirely and surface the last error to the caller.
+    Abort,
+    /// Use the built-in exponential+jitter backoff formula (same as if no
+    /// callback were registered).
+    Default,
+}
+
+/// Callback invoked before each retry attempt. Returning a [`RetryDecision`]
+/// lets the caller override the default exponential+jitter backoff behavior.
+///
+/// The callback is wrapped in an [`Arc`] so it can be cheaply cloned across
+/// task boundaries and stored inside [`RetryOptions`] (which is `Clone`).
+pub type RetryCallback = Arc<dyn Fn(&RetryContext) -> RetryDecision + Send + Sync>;
+
 /// Configuration options for retry behavior.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RetryOptions {
     /// Number of retry attempts (not counting the initial request).
     pub attempts: u32,
@@ -17,6 +67,28 @@ pub struct RetryOptions {
     pub jitter_adjustment: f64,
     /// Maximum delay between retries in milliseconds. None means no cap.
     pub max_interval_ms: Option<u64>,
+    /// When `true`, the first retry fires immediately with zero delay
+    /// regardless of the exponential backoff formula. Subsequent retries use
+    /// the normal backoff. Defaults to `false`.
+    pub fast_first: bool,
+    /// Optional callback consulted before each retry attempt. When present the
+    /// callback can override the default delay, skip the attempt, or abort
+    /// retrying entirely.
+    pub on_rejection: Option<RetryCallback>,
+}
+
+impl std::fmt::Debug for RetryOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RetryOptions")
+            .field("attempts", &self.attempts)
+            .field("initial_interval_ms", &self.initial_interval_ms)
+            .field("factor", &self.factor)
+            .field("jitter_adjustment", &self.jitter_adjustment)
+            .field("max_interval_ms", &self.max_interval_ms)
+            .field("fast_first", &self.fast_first)
+            .field("on_rejection", &self.on_rejection.is_some())
+            .finish()
+    }
 }
 
 /// Configuration options for request timeout.
