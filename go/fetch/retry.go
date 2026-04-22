@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/rand"
 	"time"
@@ -43,14 +44,30 @@ func CalculateBackoff(attempt int, opts RetryOptions) time.Duration {
 	return d
 }
 
+// statusCodeFromError pulls an HTTP status code out of known error types, or returns 0.
+func statusCodeFromError(err error) int {
+	if err == nil {
+		return 0
+	}
+	var httpErr *HTTPResponseError
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode
+	}
+	return 0
+}
+
 // ExecuteWithRetry executes fn with retry logic according to opts.
 // It calls fn up to 1 + opts.Attempts times (1 initial + N retries).
-// Between attempts it sleeps for either the duration returned by OnRejection
-// or the computed backoff. The context can cancel the retry loop.
+// Between attempts it sleeps for the duration dictated by the OnRejection callback
+// (when present) or the computed exponential backoff. The context can cancel the retry loop.
+//
+// When opts.FastFirst is true, the first retry fires with zero delay regardless of the
+// configured interval or OnRejection decision (other than RetryAbort / RetrySkip).
 func ExecuteWithRetry[T any](ctx context.Context, opts RetryOptions, fn func(ctx context.Context) (T, error)) (T, error) {
 	totalAttempts := 1 + opts.Attempts
 	var lastErr error
 	var zero T
+	startedAt := time.Now()
 
 	for attempt := 0; attempt < totalAttempts; attempt++ {
 		result, err := fn(ctx)
@@ -59,32 +76,51 @@ func ExecuteWithRetry[T any](ctx context.Context, opts RetryOptions, fn func(ctx
 		}
 		lastErr = err
 
-		// If this is the last attempt, don't bother checking retry logic
+		// If this is the last attempt, don't bother with retry bookkeeping.
 		if attempt >= totalAttempts-1 {
 			break
 		}
 
-		shouldRetry := true
-		var retryAfter time.Duration
+		// Default decision is to retry with the built-in backoff.
+		decision := RetryDefault
+		var customDelay time.Duration
 
 		if opts.OnRejection != nil {
-			shouldRetry, retryAfter = opts.OnRejection(err, attempt+1)
+			decision, customDelay = opts.OnRejection(RetryContext{
+				Attempt:    attempt + 1,
+				LastError:  err,
+				LastStatus: statusCodeFromError(err),
+				Elapsed:    time.Since(startedAt),
+			})
 		}
 
-		if !shouldRetry {
+		switch decision {
+		case RetryAbort:
 			return zero, err
+		case RetrySkip:
+			// No sleep; immediately proceed to the next attempt.
+			continue
 		}
 
-		// Determine sleep duration
-		sleepDuration := retryAfter
-		if sleepDuration <= 0 {
+		// Determine sleep duration based on the decision + FastFirst.
+		var sleepDuration time.Duration
+		switch {
+		case opts.FastFirst && attempt == 0:
+			sleepDuration = 0
+		case decision == RetryWithDelay:
+			sleepDuration = customDelay
+		default:
 			sleepDuration = CalculateBackoff(attempt, opts)
 		}
 
-		select {
-		case <-ctx.Done():
+		if sleepDuration > 0 {
+			select {
+			case <-ctx.Done():
+				return zero, ctx.Err()
+			case <-time.After(sleepDuration):
+			}
+		} else if ctx.Err() != nil {
 			return zero, ctx.Err()
-		case <-time.After(sleepDuration):
 		}
 	}
 

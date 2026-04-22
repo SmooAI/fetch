@@ -31,11 +31,14 @@ func TestIntegration_RetryOnServerError(t *testing.T) {
 			Attempts:        3,
 			InitialInterval: 10 * time.Millisecond,
 			Factor:          1.0,
-			OnRejection: func(err error, attempt int) (bool, time.Duration) {
-				if httpErr, ok := err.(*HTTPResponseError); ok {
-					return IsRetryable(httpErr.StatusCode), 0
+			OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+				if httpErr, ok := rc.LastError.(*HTTPResponseError); ok {
+					if IsRetryable(httpErr.StatusCode) {
+						return RetryDefault, 0
+					}
+					return RetryAbort, 0
 				}
-				return true, 0
+				return RetryDefault, 0
 			},
 		}).
 		WithNoTimeout().
@@ -68,11 +71,14 @@ func TestIntegration_RetryExhausted(t *testing.T) {
 			Attempts:        2,
 			InitialInterval: 10 * time.Millisecond,
 			Factor:          1.0,
-			OnRejection: func(err error, attempt int) (bool, time.Duration) {
-				if httpErr, ok := err.(*HTTPResponseError); ok {
-					return IsRetryable(httpErr.StatusCode), 0
+			OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+				if httpErr, ok := rc.LastError.(*HTTPResponseError); ok {
+					if IsRetryable(httpErr.StatusCode) {
+						return RetryDefault, 0
+					}
+					return RetryAbort, 0
 				}
-				return false, 0
+				return RetryAbort, 0
 			},
 		}).
 		WithNoTimeout().
@@ -265,11 +271,14 @@ func TestIntegration_NonRetryableError(t *testing.T) {
 		WithRetry(&RetryOptions{
 			Attempts:        3,
 			InitialInterval: 10 * time.Millisecond,
-			OnRejection: func(err error, attempt int) (bool, time.Duration) {
-				if httpErr, ok := err.(*HTTPResponseError); ok {
-					return IsRetryable(httpErr.StatusCode), 0
+			OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+				if httpErr, ok := rc.LastError.(*HTTPResponseError); ok {
+					if IsRetryable(httpErr.StatusCode) {
+						return RetryDefault, 0
+					}
+					return RetryAbort, 0
 				}
-				return false, 0
+				return RetryAbort, 0
 			},
 		}).
 		WithNoTimeout().
@@ -427,61 +436,58 @@ func TestIntegration_FullPipeline(t *testing.T) {
 }
 
 func TestIntegration_DefaultRetryOptions(t *testing.T) {
-	// Verify default retry options work correctly with the error types
+	// Verify default retry options work correctly with the error types.
 	opts := DefaultRetryOptions
 
-	// HTTPResponseError with 429 should retry
-	httpErr := &HTTPResponseError{StatusCode: 429}
-	shouldRetry, _ := opts.OnRejection(httpErr, 1)
-	if !shouldRetry {
+	isRetrying := func(d RetryDecision) bool {
+		return d == RetryDefault || d == RetryWithDelay || d == RetrySkip
+	}
+
+	// HTTPResponseError with 429 should retry.
+	decision, _ := opts.OnRejection(RetryContext{LastError: &HTTPResponseError{StatusCode: 429}, Attempt: 1})
+	if !isRetrying(decision) {
 		t.Error("429 should be retryable")
 	}
 
-	// HTTPResponseError with 500 should retry
-	httpErr = &HTTPResponseError{StatusCode: 500}
-	shouldRetry, _ = opts.OnRejection(httpErr, 1)
-	if !shouldRetry {
+	// HTTPResponseError with 500 should retry.
+	decision, _ = opts.OnRejection(RetryContext{LastError: &HTTPResponseError{StatusCode: 500}, Attempt: 1})
+	if !isRetrying(decision) {
 		t.Error("500 should be retryable")
 	}
 
-	// HTTPResponseError with 400 should NOT retry
-	httpErr = &HTTPResponseError{StatusCode: 400}
-	shouldRetry, _ = opts.OnRejection(httpErr, 1)
-	if shouldRetry {
+	// HTTPResponseError with 400 should NOT retry.
+	decision, _ = opts.OnRejection(RetryContext{LastError: &HTTPResponseError{StatusCode: 400}, Attempt: 1})
+	if decision != RetryAbort {
 		t.Error("400 should not be retryable")
 	}
 
-	// HTTPResponseError with Retry-After header should return duration
-	httpErr = &HTTPResponseError{StatusCode: 429, RetryAfter: 2 * time.Second}
-	shouldRetry, retryAfter := opts.OnRejection(httpErr, 1)
-	if !shouldRetry {
-		t.Error("429 with Retry-After should be retryable")
+	// HTTPResponseError with Retry-After header should return duration.
+	decision, retryAfter := opts.OnRejection(RetryContext{LastError: &HTTPResponseError{StatusCode: 429, RetryAfter: 2 * time.Second}, Attempt: 1})
+	if decision != RetryWithDelay {
+		t.Error("429 with Retry-After should use RetryWithDelay")
 	}
 	if retryAfter != 2*time.Second {
 		t.Errorf("expected 2s retry-after, got %v", retryAfter)
 	}
 
-	// TimeoutError should retry
-	timeoutErr := &TimeoutError{Timeout: time.Second}
-	shouldRetry, _ = opts.OnRejection(timeoutErr, 1)
-	if !shouldRetry {
+	// TimeoutError should retry.
+	decision, _ = opts.OnRejection(RetryContext{LastError: &TimeoutError{Timeout: time.Second}, Attempt: 1})
+	if !isRetrying(decision) {
 		t.Error("TimeoutError should be retryable")
 	}
 
-	// RateLimitError should retry
-	rateLimitErr := &RateLimitError{RetryAfter: 500 * time.Millisecond}
-	shouldRetry, retryAfter = opts.OnRejection(rateLimitErr, 1)
-	if !shouldRetry {
-		t.Error("RateLimitError should be retryable")
+	// RateLimitError should retry with a delay.
+	decision, retryAfter = opts.OnRejection(RetryContext{LastError: &RateLimitError{RetryAfter: 500 * time.Millisecond}, Attempt: 1})
+	if decision != RetryWithDelay {
+		t.Error("RateLimitError should use RetryWithDelay")
 	}
 	if retryAfter != 500*time.Millisecond {
 		t.Errorf("expected 500ms retry-after, got %v", retryAfter)
 	}
 
-	// SchemaValidationError should NOT retry
-	schemaErr := &SchemaValidationError{Errors: []string{"invalid"}}
-	shouldRetry, _ = opts.OnRejection(schemaErr, 1)
-	if shouldRetry {
+	// SchemaValidationError should NOT retry.
+	decision, _ = opts.OnRejection(RetryContext{LastError: &SchemaValidationError{Errors: []string{"invalid"}}, Attempt: 1})
+	if decision != RetryAbort {
 		t.Error("SchemaValidationError should not be retryable")
 	}
 }
@@ -489,20 +495,18 @@ func TestIntegration_DefaultRetryOptions(t *testing.T) {
 func TestIntegration_DefaultRateLimitRetryOptions(t *testing.T) {
 	opts := DefaultRateLimitRetryOptions
 
-	// RateLimitError should retry with adjusted duration
-	rateLimitErr := &RateLimitError{RetryAfter: 200 * time.Millisecond}
-	shouldRetry, retryAfter := opts.OnRejection(rateLimitErr, 1)
-	if !shouldRetry {
-		t.Error("RateLimitError should be retryable")
+	// RateLimitError should retry with adjusted duration.
+	decision, retryAfter := opts.OnRejection(RetryContext{LastError: &RateLimitError{RetryAfter: 200 * time.Millisecond}, Attempt: 1})
+	if decision != RetryWithDelay {
+		t.Error("RateLimitError should use RetryWithDelay")
 	}
 	if retryAfter != 250*time.Millisecond {
 		t.Errorf("expected 250ms (200ms + 50ms), got %v", retryAfter)
 	}
 
-	// Non-RateLimitError should NOT retry
-	httpErr := &HTTPResponseError{StatusCode: 500}
-	shouldRetry, _ = opts.OnRejection(httpErr, 1)
-	if shouldRetry {
+	// Non-RateLimitError should NOT retry.
+	decision, _ = opts.OnRejection(RetryContext{LastError: &HTTPResponseError{StatusCode: 500}, Attempt: 1})
+	if decision != RetryAbort {
 		t.Error("non-RateLimitError should not be retryable with rate limit retry options")
 	}
 }

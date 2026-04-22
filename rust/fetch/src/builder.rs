@@ -14,7 +14,7 @@ use crate::rate_limit::SlidingWindowRateLimiter;
 use crate::response::FetchResponse;
 use crate::types::{
     CircuitBreakerOptions, FetchContainerOptions, FetchOptions, RateLimitOptions, RequestInit,
-    RetryOptions, TimeoutOptions,
+    RetryCallback, RetryOptions, TimeoutOptions,
 };
 
 /// Builder for creating configured fetch functions with retry, timeout, rate limiting,
@@ -89,6 +89,39 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
     /// Disable retry (no retries will be attempted).
     pub fn without_retry(mut self) -> Self {
         self.fetch_options.retry = None;
+        self
+    }
+
+    /// Enable or disable `fast_first` on the current retry options.
+    ///
+    /// When `true`, the first retry fires immediately with zero delay. Calling
+    /// this on a builder whose retry has been disabled via [`without_retry`]
+    /// will re-enable retries with the default options.
+    pub fn with_fast_first(mut self, fast_first: bool) -> Self {
+        let mut opts = self
+            .fetch_options
+            .retry
+            .take()
+            .unwrap_or_else(defaults::default_retry_options);
+        opts.fast_first = fast_first;
+        self.fetch_options.retry = Some(opts);
+        self
+    }
+
+    /// Register an `on_rejection` callback that is consulted before each retry
+    /// attempt. See [`RetryCallback`] / [`crate::types::RetryDecision`] for the
+    /// contract.
+    ///
+    /// Calling this on a builder whose retry has been disabled via
+    /// [`without_retry`] will re-enable retries with the default options.
+    pub fn with_on_rejection(mut self, callback: RetryCallback) -> Self {
+        let mut opts = self
+            .fetch_options
+            .retry
+            .take()
+            .unwrap_or_else(defaults::default_retry_options);
+        opts.on_rejection = Some(callback);
+        self.fetch_options.retry = Some(opts);
         self
     }
 

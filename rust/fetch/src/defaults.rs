@@ -34,6 +34,8 @@ pub fn default_retry_options() -> RetryOptions {
         factor: DEFAULT_RETRY_FACTOR,
         jitter_adjustment: DEFAULT_RETRY_JITTER_ADJUSTMENT,
         max_interval_ms: None,
+        fast_first: false,
+        on_rejection: None,
     }
 }
 

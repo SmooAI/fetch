@@ -9,7 +9,9 @@ use wiremock::{Mock, MockServer, Respond, ResponseTemplate};
 use smooai_fetch::client;
 use smooai_fetch::error::FetchError;
 use smooai_fetch::retry::{calculate_backoff, is_retryable};
-use smooai_fetch::types::{FetchOptions, Method, RequestInit, RetryOptions, TimeoutOptions};
+use smooai_fetch::types::{
+    FetchOptions, Method, RequestInit, RetryContext, RetryDecision, RetryOptions, TimeoutOptions,
+};
 
 #[test]
 fn test_is_retryable_status_codes() {
@@ -35,6 +37,8 @@ fn test_calculate_backoff_no_jitter() {
         factor: 2.0,
         jitter_adjustment: 0.0,
         max_interval_ms: None,
+        fast_first: false,
+        on_rejection: None,
     };
 
     assert_eq!(calculate_backoff(0, &options), 100); // 100 * 2^0
@@ -51,6 +55,8 @@ fn test_calculate_backoff_with_max_interval() {
         factor: 2.0,
         jitter_adjustment: 0.0,
         max_interval_ms: Some(300),
+        fast_first: false,
+        on_rejection: None,
     };
 
     assert_eq!(calculate_backoff(0, &options), 100);
@@ -67,6 +73,8 @@ fn test_calculate_backoff_with_jitter_is_bounded() {
         factor: 1.0,
         jitter_adjustment: 0.5,
         max_interval_ms: None,
+        fast_first: false,
+        on_rejection: None,
     };
 
     for _ in 0..100 {
@@ -130,6 +138,8 @@ async fn test_retry_succeeds_after_failures() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         }),
     };
 
@@ -181,6 +191,8 @@ async fn test_retry_exhausted() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         }),
     };
 
@@ -235,6 +247,8 @@ async fn test_non_retryable_error_not_retried() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         }),
     };
 
@@ -283,6 +297,8 @@ async fn test_retry_with_retry_after_header() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         }),
     };
 
@@ -298,6 +314,294 @@ async fn test_retry_with_retry_after_header() {
     assert!(
         elapsed.as_millis() >= 900,
         "Should have waited for Retry-After, elapsed: {:?}",
+        elapsed
+    );
+}
+
+// --- fast_first ---------------------------------------------------------
+
+#[tokio::test]
+async fn test_fast_first_skips_initial_delay() {
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    // Fail once, then succeed. With fast_first, the sole retry should fire
+    // immediately (well under the 2s configured backoff).
+    let responder = CountingResponder {
+        call_count: call_count.clone(),
+        responses: vec![
+            ResponseTemplate::new(500)
+                .set_body_json(serde_json::json!({"error": "boom"}))
+                .insert_header("content-type", "application/json"),
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"ok": true}))
+                .insert_header("content-type", "application/json"),
+        ],
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/fast-first"))
+        .respond_with(responder)
+        .mount(&mock_server)
+        .await;
+
+    let url = format!("{}/fast-first", mock_server.uri());
+    let init = RequestInit {
+        method: Method::GET,
+        ..Default::default()
+    };
+    let options = FetchOptions {
+        timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+        retry: Some(RetryOptions {
+            attempts: 1,
+            initial_interval_ms: 2_000, // deliberately large
+            factor: 2.0,
+            jitter_adjustment: 0.0,
+            max_interval_ms: None,
+            fast_first: true,
+            on_rejection: None,
+        }),
+    };
+
+    let start = std::time::Instant::now();
+    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
+        .await
+        .unwrap();
+    let elapsed = start.elapsed();
+
+    assert!(response.ok);
+    assert_eq!(call_count.load(Ordering::SeqCst), 2);
+    // Without fast_first we would sleep ~2000ms; with it, the retry should be
+    // well under 500ms even under heavy CI load.
+    assert!(
+        elapsed.as_millis() < 500,
+        "fast_first should eliminate the 2s backoff; elapsed was {:?}",
+        elapsed
+    );
+}
+
+// --- on_rejection -------------------------------------------------------
+
+fn failing_mock_server_responder(call_count: Arc<AtomicU32>) -> CountingResponder {
+    CountingResponder {
+        call_count,
+        responses: vec![
+            ResponseTemplate::new(500)
+                .set_body_json(serde_json::json!({"error": "boom"}))
+                .insert_header("content-type", "application/json"),
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"ok": true}))
+                .insert_header("content-type", "application/json"),
+        ],
+    }
+}
+
+#[tokio::test]
+async fn test_on_rejection_retry_decision_overrides_delay() {
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    Mock::given(method("GET"))
+        .and(path("/on-rejection-retry"))
+        .respond_with(failing_mock_server_responder(call_count.clone()))
+        .mount(&mock_server)
+        .await;
+
+    let seen_attempts = Arc::new(AtomicU32::new(0));
+    let seen_attempts_cb = seen_attempts.clone();
+
+    let callback: smooai_fetch::types::RetryCallback = Arc::new(move |ctx: &RetryContext| {
+        seen_attempts_cb.store(ctx.attempt, Ordering::SeqCst);
+        // Sanity-check we got a retryable 5xx through last_status.
+        assert_eq!(ctx.last_status, Some(500));
+        RetryDecision::Retry {
+            delay: std::time::Duration::from_millis(17),
+        }
+    });
+
+    let url = format!("{}/on-rejection-retry", mock_server.uri());
+    let init = RequestInit {
+        method: Method::GET,
+        ..Default::default()
+    };
+    let options = FetchOptions {
+        timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+        retry: Some(RetryOptions {
+            attempts: 1,
+            initial_interval_ms: 5_000,
+            factor: 2.0,
+            jitter_adjustment: 0.0,
+            max_interval_ms: None,
+            fast_first: false,
+            on_rejection: Some(callback),
+        }),
+    };
+
+    let start = std::time::Instant::now();
+    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
+        .await
+        .unwrap();
+    let elapsed = start.elapsed();
+
+    assert!(response.ok);
+    assert_eq!(call_count.load(Ordering::SeqCst), 2);
+    assert_eq!(seen_attempts.load(Ordering::SeqCst), 1);
+    // ~17ms delay; allow generous upper bound but confirm we did not sleep the
+    // configured 5s.
+    assert!(
+        elapsed.as_millis() >= 10 && elapsed.as_millis() < 1_000,
+        "callback delay was not honored; elapsed: {:?}",
+        elapsed
+    );
+}
+
+#[tokio::test]
+async fn test_on_rejection_abort_stops_retry_loop() {
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    let responder = CountingResponder {
+        call_count: call_count.clone(),
+        responses: vec![ResponseTemplate::new(500)
+            .set_body_json(serde_json::json!({"error": "boom"}))
+            .insert_header("content-type", "application/json")],
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/on-rejection-abort"))
+        .respond_with(responder)
+        .mount(&mock_server)
+        .await;
+
+    let callback: smooai_fetch::types::RetryCallback =
+        Arc::new(|_ctx: &RetryContext| RetryDecision::Abort);
+
+    let url = format!("{}/on-rejection-abort", mock_server.uri());
+    let init = RequestInit {
+        method: Method::GET,
+        ..Default::default()
+    };
+    let options = FetchOptions {
+        timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+        retry: Some(RetryOptions {
+            attempts: 3,
+            initial_interval_ms: 50,
+            factor: 1.0,
+            jitter_adjustment: 0.0,
+            max_interval_ms: None,
+            fast_first: false,
+            on_rejection: Some(callback),
+        }),
+    };
+
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+
+    // Abort surfaces the underlying HttpResponse error rather than wrapping in
+    // `FetchError::Retry`.
+    assert!(matches!(
+        result,
+        Err(FetchError::HttpResponse { status: 500, .. })
+    ));
+    // Exactly one HTTP call — no retry was performed.
+    assert_eq!(call_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn test_on_rejection_default_falls_through_to_exponential() {
+    // With `RetryDecision::Default`, behavior must match a run with no
+    // callback registered. Using `initial_interval_ms = 50` we expect the
+    // retry to succeed within a reasonable window (comparable to the
+    // no-callback path used elsewhere in this file).
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    Mock::given(method("GET"))
+        .and(path("/on-rejection-default"))
+        .respond_with(failing_mock_server_responder(call_count.clone()))
+        .mount(&mock_server)
+        .await;
+
+    let callback: smooai_fetch::types::RetryCallback =
+        Arc::new(|_ctx: &RetryContext| RetryDecision::Default);
+
+    let url = format!("{}/on-rejection-default", mock_server.uri());
+    let init = RequestInit {
+        method: Method::GET,
+        ..Default::default()
+    };
+    let options = FetchOptions {
+        timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+        retry: Some(RetryOptions {
+            attempts: 1,
+            initial_interval_ms: 50,
+            factor: 1.0,
+            jitter_adjustment: 0.0,
+            max_interval_ms: None,
+            fast_first: false,
+            on_rejection: Some(callback),
+        }),
+    };
+
+    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
+        .await
+        .unwrap();
+    assert!(response.ok);
+    assert_eq!(call_count.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn test_on_rejection_skip_consumes_attempt_without_sleep() {
+    // Server always fails. With attempts=2 and `RetryDecision::Skip` returned
+    // on every call, the loop should burn its 2 retries with no sleeps and
+    // surface a Retry error.
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    let responder = CountingResponder {
+        call_count: call_count.clone(),
+        responses: vec![ResponseTemplate::new(500)
+            .set_body_json(serde_json::json!({"error": "boom"}))
+            .insert_header("content-type", "application/json")],
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/on-rejection-skip"))
+        .respond_with(responder)
+        .mount(&mock_server)
+        .await;
+
+    let callback: smooai_fetch::types::RetryCallback =
+        Arc::new(|_ctx: &RetryContext| RetryDecision::Skip);
+
+    let url = format!("{}/on-rejection-skip", mock_server.uri());
+    let init = RequestInit {
+        method: Method::GET,
+        ..Default::default()
+    };
+    let options = FetchOptions {
+        timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+        retry: Some(RetryOptions {
+            attempts: 2,
+            initial_interval_ms: 5_000, // would be painful if not skipped
+            factor: 1.0,
+            jitter_adjustment: 0.0,
+            max_interval_ms: None,
+            fast_first: false,
+            on_rejection: Some(callback),
+        }),
+    };
+
+    let start = std::time::Instant::now();
+    let result =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+    let elapsed = start.elapsed();
+
+    assert!(matches!(result, Err(FetchError::Retry { .. })));
+    assert_eq!(call_count.load(Ordering::SeqCst), 3); // 1 + 2 retries
+    assert!(
+        elapsed.as_millis() < 1_000,
+        "Skip should bypass the 5s backoff; elapsed: {:?}",
         elapsed
     );
 }

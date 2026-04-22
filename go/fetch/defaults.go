@@ -10,37 +10,37 @@ var DefaultRetryOptions = RetryOptions{
 	Factor:          2.0,
 	JitterFraction:  0.5,
 	MaxInterval:     0, // no cap
-	OnRejection: func(err error, attempt int) (bool, time.Duration) {
-		switch e := err.(type) {
+	OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+		switch e := rc.LastError.(type) {
 		case *HTTPResponseError:
 			if IsRetryable(e.StatusCode) {
 				if ra := e.RetryAfter; ra > 0 {
-					return true, ra
+					return RetryWithDelay, ra
 				}
-				return true, 0
+				return RetryDefault, 0
 			}
-			return false, 0
+			return RetryAbort, 0
 		case *RateLimitError:
-			return true, e.RetryAfter
+			return RetryWithDelay, e.RetryAfter
 		case *TimeoutError:
-			return true, 0
+			return RetryDefault, 0
 		case *SchemaValidationError:
-			return false, 0
+			return RetryAbort, 0
 		default:
-			return true, 0
+			return RetryDefault, 0
 		}
 	},
 }
 
 // DefaultRateLimitRetryOptions provides retry defaults for rate-limit rejections.
-var DefaultRateLimitRetryOptions = RetryOptions{
+var DefaultRateLimitRetryOptions = RateLimitRetryOptions{
 	Attempts:        1,
 	InitialInterval: 500 * time.Millisecond,
-	OnRejection: func(err error, attempt int) (bool, time.Duration) {
-		if e, ok := err.(*RateLimitError); ok {
-			return true, e.RetryAfter + 50*time.Millisecond
+	OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+		if e, ok := rc.LastError.(*RateLimitError); ok {
+			return RetryWithDelay, e.RetryAfter + 50*time.Millisecond
 		}
-		return false, 0
+		return RetryAbort, 0
 	},
 }
 

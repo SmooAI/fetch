@@ -5,6 +5,36 @@ import (
 	"time"
 )
 
+// RetryDecision indicates what the retry loop should do after a failed attempt.
+type RetryDecision int
+
+const (
+	// RetryDefault keeps the built-in exponential+jitter behavior.
+	RetryDefault RetryDecision = iota
+	// RetryWithDelay uses the duration returned alongside the decision.
+	RetryWithDelay
+	// RetryAbort stops retrying and returns the last error.
+	RetryAbort
+	// RetrySkip skips the current delay entirely and moves to the next attempt.
+	RetrySkip
+)
+
+// RetryContext is passed to OnRejectionFunc and describes the current retry state.
+type RetryContext struct {
+	// Attempt is the 1-based attempt number that just failed.
+	Attempt int
+	// LastError is the error from the last attempt. May be nil.
+	LastError error
+	// LastStatus is the HTTP status code from the last response, or 0 if no response.
+	LastStatus int
+	// Elapsed is the total time spent since the retry loop started.
+	Elapsed time.Duration
+}
+
+// OnRejectionFunc is called after a failed attempt and returns a decision about the next step.
+// The returned duration is only consulted when the decision is RetryWithDelay.
+type OnRejectionFunc func(ctx RetryContext) (RetryDecision, time.Duration)
+
 // RetryOptions configures retry behavior for failed requests.
 type RetryOptions struct {
 	// Attempts is the maximum number of retry attempts (0 means no retries).
@@ -17,12 +47,15 @@ type RetryOptions struct {
 	JitterFraction float64
 	// MaxInterval caps the maximum delay between retries.
 	MaxInterval time.Duration
-	// OnRejection is called after a failed attempt.
-	// Return (true, 0) to retry with normal backoff.
-	// Return (true, d) to retry after duration d.
-	// Return (false, 0) to stop retrying.
-	OnRejection func(err error, attempt int) (shouldRetry bool, retryAfter time.Duration)
+	// FastFirst, when true, fires the first retry with zero delay.
+	FastFirst bool
+	// OnRejection is consulted before each retry. If nil, all attempts use RetryDefault.
+	OnRejection OnRejectionFunc
 }
+
+// RateLimitRetryOptions aliases RetryOptions for rate-limit-specific retry configuration,
+// matching the TypeScript container-options shape where rateLimit.retry is a RetryOptions.
+type RateLimitRetryOptions = RetryOptions
 
 // TimeoutOptions configures request timeout behavior.
 type TimeoutOptions struct {
@@ -95,6 +128,19 @@ type LifecycleHooks struct {
 	// PostResponseError is called when the request results in an error.
 	// It may return a replacement error or nil to keep the original.
 	PostResponseError func(url string, req *http.Request, err error, resp *FetchResponse[any]) error
+}
+
+// FetchContainerOptions groups the container-level options (rate limit, rate-limit retry,
+// circuit breaker) so they can be applied in a single call via WithContainerOptions,
+// matching the ergonomics of the TypeScript FetchBuilder.withContainerOptions() API.
+type FetchContainerOptions struct {
+	// RateLimit configures the sliding-window rate limiter. nil leaves the current setting untouched.
+	RateLimit *RateLimitOptions
+	// RateLimitRetry configures retry behavior specifically for rate-limit rejections.
+	// nil leaves the current setting untouched.
+	RateLimitRetry *RateLimitRetryOptions
+	// CircuitBreaker configures the circuit breaker. nil leaves the current setting untouched.
+	CircuitBreaker *CircuitBreakerOptions
 }
 
 // RequestOptions configures per-request behavior.

@@ -195,3 +195,152 @@ func TestClientBuilder_DefaultCircuitBreakerName(t *testing.T) {
 		t.Fatal("expected circuit breaker to be set even with empty name")
 	}
 }
+
+// TestClientBuilder_WithRateLimitRetry verifies that rate-limit rejections are
+// retried using the per-client rate-limit retry options and then succeed when
+// the window clears.
+func TestClientBuilder_WithRateLimitRetry(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(testJSON{ID: "1", Name: "rlretry"})
+	}))
+	defer server.Close()
+
+	rlRetryCalls := 0
+
+	client := NewClientBuilder().
+		WithRateLimit(1, 100*time.Millisecond).
+		WithRateLimitRetry(&RateLimitRetryOptions{
+			Attempts:        3,
+			InitialInterval: 10 * time.Millisecond,
+			OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+				rlRetryCalls++
+				if e, ok := rc.LastError.(*RateLimitError); ok {
+					// Wait the reported window + a little slack, then retry.
+					return RetryWithDelay, e.RetryAfter + 10*time.Millisecond
+				}
+				return RetryAbort, 0
+			},
+		}).
+		WithNoRetry().
+		WithNoTimeout().
+		Build()
+
+	if client.rateLimitRetry == nil {
+		t.Fatal("expected rate-limit retry options to be stored on client")
+	}
+	if client.rateLimitRetry.Attempts != 3 {
+		t.Errorf("expected Attempts=3, got %d", client.rateLimitRetry.Attempts)
+	}
+
+	// First request: passes through immediately.
+	if _, err := Get[testJSON](context.Background(), client, server.URL, nil); err != nil {
+		t.Fatalf("first request failed: %v", err)
+	}
+
+	start := time.Now()
+	// Second request: the rate limiter rejects, but the rate-limit retry loop
+	// should wait the window out and then succeed.
+	resp, err := Get[testJSON](context.Background(), client, server.URL, nil)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("second request unexpectedly failed: %v", err)
+	}
+	if resp.Data.Name != "rlretry" {
+		t.Errorf("expected 'rlretry', got %q", resp.Data.Name)
+	}
+	if rlRetryCalls == 0 {
+		t.Error("expected rate-limit OnRejection to be consulted at least once")
+	}
+	// Should have waited close to the 100ms window.
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("expected rate-limit retry to wait for window, took %v", elapsed)
+	}
+}
+
+// TestClientBuilder_WithContainerOptions verifies that batch-setting all three
+// container options via WithContainerOptions actually wires each of them up.
+func TestClientBuilder_WithContainerOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(testJSON{ID: "1", Name: "container"})
+	}))
+	defer server.Close()
+
+	cbStateChanges := 0
+
+	client := NewClientBuilder().
+		WithContainerOptions(FetchContainerOptions{
+			RateLimit: &RateLimitOptions{
+				MaxRequests: 5,
+				Period:      200 * time.Millisecond,
+			},
+			RateLimitRetry: &RateLimitRetryOptions{
+				Attempts:        2,
+				InitialInterval: 5 * time.Millisecond,
+				OnRejection: func(rc RetryContext) (RetryDecision, time.Duration) {
+					if e, ok := rc.LastError.(*RateLimitError); ok {
+						return RetryWithDelay, e.RetryAfter + 5*time.Millisecond
+					}
+					return RetryAbort, 0
+				},
+			},
+			CircuitBreaker: &CircuitBreakerOptions{
+				MaxRequests: 2,
+				Timeout:     50 * time.Millisecond,
+				OnStateChange: func(name string, from, to CircuitBreakerState) {
+					cbStateChanges++
+				},
+			},
+		}).
+		WithNoRetry().
+		WithNoTimeout().
+		Build()
+
+	// All three components should be wired up.
+	if client.rateLimiter == nil {
+		t.Error("expected rate limiter to be configured via WithContainerOptions")
+	}
+	if client.rateLimitRetry == nil {
+		t.Error("expected rate-limit retry to be configured via WithContainerOptions")
+	}
+	if client.rateLimitRetry != nil && client.rateLimitRetry.Attempts != 2 {
+		t.Errorf("expected rate-limit retry Attempts=2, got %d", client.rateLimitRetry.Attempts)
+	}
+	if client.circuitBreaker == nil {
+		t.Error("expected circuit breaker to be configured via WithContainerOptions")
+	}
+
+	// A happy-path request should succeed through all three layers.
+	resp, err := Get[testJSON](context.Background(), client, server.URL, nil)
+	if err != nil {
+		t.Fatalf("request failed through container pipeline: %v", err)
+	}
+	if resp.Data.Name != "container" {
+		t.Errorf("expected 'container', got %q", resp.Data.Name)
+	}
+
+	// Underscore unused var so the compiler doesn't flag it if a branch skips it.
+	_ = cbStateChanges
+}
+
+// TestClientBuilder_WithContainerOptions_NilFieldsLeaveUnchanged verifies that
+// nil fields in FetchContainerOptions are no-ops and do not clobber previously
+// configured container options.
+func TestClientBuilder_WithContainerOptions_NilFieldsLeaveUnchanged(t *testing.T) {
+	b := NewClientBuilder().
+		WithRateLimit(10, time.Second).
+		WithCircuitBreaker("pre-existing", &CircuitBreakerOptions{MaxRequests: 1})
+
+	// All-nil container options should leave earlier settings in place.
+	client := b.WithContainerOptions(FetchContainerOptions{}).Build()
+	if client.rateLimiter == nil {
+		t.Error("expected pre-existing rate limiter to survive empty WithContainerOptions")
+	}
+	if client.circuitBreaker == nil {
+		t.Error("expected pre-existing circuit breaker to survive empty WithContainerOptions")
+	}
+	if client.rateLimitRetry != nil {
+		t.Error("expected rate-limit retry to remain unset")
+	}
+}

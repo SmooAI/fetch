@@ -55,3 +55,6 @@ __pycache__/
 *.pyc
 
 # Go
+
+# Local test/integration logs — regenerated on every run
+.smooai-logs/

@@ -71,6 +71,8 @@ async fn test_retry_with_timeout() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         })
         .build();
 
@@ -108,6 +110,8 @@ async fn test_circuit_breaker_with_retry() {
             factor: 1.0,
             jitter_adjustment: 0.0,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         })
         .with_circuit_breaker(2, 1, 5000)
         .build();
@@ -275,6 +279,8 @@ async fn test_full_pipeline_success() {
             factor: 2.0,
             jitter_adjustment: 0.5,
             max_interval_ms: None,
+            fast_first: false,
+            on_rejection: None,
         })
         .with_rate_limit(10, 60_000)
         .with_circuit_breaker(5, 2, 30_000)
