@@ -1,14 +1,27 @@
 # SmooAI.Fetch
 
-**Resilient HTTP client for .NET 8+ — Polly-backed retry, typed JSON, async auth, `Retry-After` honoring, and a single typed error type for every non-2xx.**
+[![NuGet](https://img.shields.io/nuget/v/SmooAI.Fetch.svg)](https://www.nuget.org/packages/SmooAI.Fetch)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-.NET port of [`@smooai/fetch`](https://github.com/SmooAI/fetch). Built on `HttpClientFactory` + [Polly](https://github.com/App-vNext/Polly). Wire-compatible semantics with the TypeScript, Python, Go, and Rust ports.
+**HTTP that gets out of your way for .NET 8+ — typed JSON in and out, automatic retry on transient failures, auth token injection, one error type for every non-2xx.**
+
+.NET port of [`@smooai/fetch`](https://github.com/SmooAI/fetch). Stop writing the same retry/backoff/auth wrapper for every API client in every service. Wire-compatible semantics with the TypeScript, Python, Go, and Rust ports.
 
 ## Install
 
 ```bash
 dotnet add package SmooAI.Fetch
 ```
+
+## What you get
+
+- **Typed JSON** — `GetAsync<User>` and `PostAsync<Dto, User>`. Your request and response shapes, strongly typed. No `JsonSerializer.Deserialize` boilerplate on every call site.
+- **Automatic retries on transient failures** — network blips, timeouts, and `408` / `425` / `429` / `5xx` responses are retried with exponential backoff + jitter.
+- **`Retry-After` is honored** — when a server tells you "wait 5s", the client waits 5s instead of your default backoff. Never eat a 429 again.
+- **Async auth tokens** — register an `AuthTokenProvider` once; every request picks up a fresh bearer token without restarting `HttpClient`.
+- **One typed error per non-2xx** — catch `HttpResponseError` and you've got status, body, headers, URI, and method on one exception.
+- **Per-request cancellation + timeout** — linked `CancellationTokenSource` under the hood; every method takes a `CancellationToken`.
+- **DI-ready** — `AddSmooFetch(options => …)` plugs into `IHttpClientFactory` and your `IServiceCollection`.
 
 ## Quick start — standalone
 
@@ -57,7 +70,7 @@ options.RetryPolicy = RetryPolicy.ExponentialBackoff(
 ```
 
 - Retries on transient exceptions (timeouts, socket errors) and on `408` / `425` / `429` / `500` / `502` / `503` / `504`.
-- Honors the `Retry-After` header on `429` / `503` — if the server says "wait 5s", Polly waits 5s instead of your backoff.
+- Honors the `Retry-After` header on `429` / `503` — if the server says "wait 5s", the client waits 5s instead of your backoff.
 - Exponential backoff with jitter; bounded by `maxDelay`.
 
 ## Typed errors — one `catch` per layer
