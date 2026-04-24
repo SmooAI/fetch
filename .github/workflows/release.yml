@@ -105,17 +105,25 @@ jobs:
 
             - name: Publish smooai-fetch to PyPI
               if: steps.changesets.outputs.published == 'true'
-              run: uv run poe publish
               working-directory: python
               env:
                   UV_PUBLISH_TOKEN: ${{ secrets.SMOOAI_PYPI_TOKEN }}
+              run: |
+                  # Clean stale build artifacts from the earlier `pnpm build` run
+                  # (which produced wheels at the pre-sync version) so `uv publish`
+                  # doesn't try to upload the stale files alongside the fresh ones.
+                  rm -rf dist/
+                  uv run poe publish
 
             - name: Publish smooai-fetch to crates.io
               if: steps.changesets.outputs.published == 'true'
               uses: actions-rs/cargo@v1
               with:
                   command: publish
-                  args: --locked --manifest-path rust/fetch/Cargo.toml
+                  # --allow-dirty is needed because sync-versions.mjs modifies
+                  # Cargo.toml (and rebuild updates Cargo.lock) between the
+                  # committed state and publish. --locked would reject that mismatch.
+                  args: --allow-dirty --manifest-path rust/fetch/Cargo.toml
               env:
                   CARGO_REGISTRY_TOKEN: ${{ secrets.SMOOAI_CARGO_REGISTRY_TOKEN }}
 
