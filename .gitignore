@@ -56,5 +56,10 @@ __pycache__/
 
 # Go
 
+# .NET build artifacts
+dotnet/**/bin/
+dotnet/**/obj/
+dotnet/artifacts/
+
 # Local test/integration logs — regenerated on every run
 .smooai-logs/
