@@ -57,12 +57,21 @@ jobs:
                   go-version: '1.23'
                   cache-dependency-path: go/fetch/go.sum
 
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: '8.0.x'
+
             - name: Install dependencies
               run: pnpm install
 
             - name: Sync Python dependencies
               run: uv sync --group dev
               working-directory: python
+
+            - name: Restore .NET dependencies
+              run: dotnet restore SmooAI.Fetch.sln
+              working-directory: dotnet
 
             - name: Typecheck
               run: pnpm typecheck
@@ -118,6 +127,18 @@ jobs:
                   git tag "${TAG}"
                   git push origin "${TAG}"
                   echo "Go module tagged and pushed: ${TAG}"
+
+            - name: Pack and publish SmooAI.Fetch to NuGet
+              if: steps.changesets.outputs.published == 'true'
+              run: |
+                  dotnet pack SmooAI.Fetch/SmooAI.Fetch.csproj -c Release --nologo -o ./artifacts
+                  dotnet nuget push "./artifacts/*.nupkg" \
+                      --api-key "${NUGET_API_KEY}" \
+                      --source "https://api.nuget.org/v3/index.json" \
+                      --skip-duplicate
+              working-directory: dotnet
+              env:
+                  NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
             - name: Auto-Merge Changeset PR
               run: |

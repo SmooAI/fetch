@@ -46,12 +46,21 @@ jobs:
                   go-version: '1.23'
                   cache-dependency-path: go/fetch/go.sum
 
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: '8.0.x'
+
             - name: Install dependencies
               run: pnpm install
 
             - name: Sync Python dependencies
               run: uv sync --group dev
               working-directory: python
+
+            - name: Restore .NET dependencies
+              run: dotnet restore SmooAI.Fetch.sln
+              working-directory: dotnet
 
             - name: Typecheck
               run: pnpm typecheck
@@ -60,7 +69,7 @@ jobs:
               run: pnpm lint
 
             - name: Format check
-              run: pnpm format:check && pnpm python:format:check && pnpm rust:fmt:check && pnpm go:fmt:check
+              run: pnpm format:check && pnpm python:format:check && pnpm rust:fmt:check && pnpm go:fmt:check && pnpm dotnet:format:check
 
             - name: Test
               run: pnpm test
