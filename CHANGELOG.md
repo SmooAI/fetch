@@ -1,5 +1,11 @@
 # @smooai/fetch
 
+## 3.3.1
+
+### Patch Changes
+
+- 203479e: SMOODEV-662: Sync SmooAI.Fetch NuGet version to package.json + polish NuGet README
+
 ## 3.3.0
 
 ### Minor Changes
