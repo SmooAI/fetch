@@ -10,7 +10,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
 
     <PackageId>SmooAI.Fetch</PackageId>
-    <Version>3.2.0</Version>
+    <Version>3.3.0</Version>
     <Authors>SmooAI</Authors>
     <Company>SmooAI</Company>
     <Description>Resilient HTTP client for .NET with Polly-based retry, timeouts, typed JSON responses, and auth token injection. Port of @smooai/fetch.</Description>
