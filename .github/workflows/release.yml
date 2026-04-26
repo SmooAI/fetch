@@ -39,7 +39,7 @@ jobs:
                   python-version: '3.13'
 
             - name: Setup uv
-              uses: astral-sh/setup-uv@v3
+              uses: astral-sh/setup-uv@v6
 
             - name: Setup Rust toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -117,13 +117,10 @@ jobs:
 
             - name: Publish smooai-fetch to crates.io
               if: steps.changesets.outputs.published == 'true'
-              uses: actions-rs/cargo@v1
-              with:
-                  command: publish
-                  # --allow-dirty is needed because sync-versions.mjs modifies
-                  # Cargo.toml (and rebuild updates Cargo.lock) between the
-                  # committed state and publish. --locked would reject that mismatch.
-                  args: --allow-dirty --manifest-path rust/fetch/Cargo.toml
+              # --allow-dirty is needed because sync-versions.mjs modifies
+              # Cargo.toml (and rebuild updates Cargo.lock) between the
+              # committed state and publish. --locked would reject that mismatch.
+              run: cargo publish --allow-dirty --manifest-path rust/fetch/Cargo.toml
               env:
                   CARGO_REGISTRY_TOKEN: ${{ secrets.SMOOAI_CARGO_REGISTRY_TOKEN }}
 
