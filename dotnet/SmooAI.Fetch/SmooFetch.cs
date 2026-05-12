@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Polly.CircuitBreaker;
+using SmooAI.Fetch.Internal;
 
 namespace SmooAI.Fetch;
 
@@ -23,6 +24,7 @@ public sealed class SmooFetch
     private readonly SmooFetchOptions _options;
     private readonly ILogger<SmooFetch> _logger;
     private readonly ResiliencePipeline<HttpResponseMessage> _pipeline;
+    private readonly SlidingWindowLimiterAdapter? _rateLimiter;
 
     /// <summary>Constant used when registering the typed client with <see cref="IHttpClientFactory"/>.</summary>
     public const string DefaultHttpClientName = "SmooAI.Fetch";
@@ -34,6 +36,7 @@ public sealed class SmooFetch
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? NullLogger<SmooFetch>.Instance;
         _pipeline = BuildPipeline(options);
+        _rateLimiter = options.RateLimiter is { } rl ? new SlidingWindowLimiterAdapter(rl) : null;
     }
 
     private static ResiliencePipeline<HttpResponseMessage> BuildPipeline(SmooFetchOptions options)
@@ -164,6 +167,15 @@ public sealed class SmooFetch
         {
             response = await _pipeline.ExecuteAsync(async ct =>
             {
+                // Rate-limit gate: acquire a permit before dispatch. The limiter
+                // waits / queues until a permit is available, so retries are not
+                // required for rate-limit rejections — but the configured
+                // OnRejected callback still fires for observability.
+                if (_rateLimiter is not null)
+                {
+                    await _rateLimiter.AcquireAsync(request, ct).ConfigureAwait(false);
+                }
+
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 linkedCts.CancelAfter(_options.Timeout);
                 var attemptRequest = await CloneRequestAsync(request).ConfigureAwait(false);
