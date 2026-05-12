@@ -18,6 +18,7 @@ from smooai_fetch._types import (
     PostResponseSuccessHook,
     PreRequestHook,
     RateLimitOptions,
+    RateLimitRetryOptions,
     RetryOptions,
     TimeoutOptions,
 )
@@ -48,6 +49,7 @@ class FetchBuilder:
         self._retry: RetryOptions | None = None
         self._timeout: TimeoutOptions | None = None
         self._rate_limit: RateLimitOptions | None = None
+        self._rate_limit_retry: RateLimitRetryOptions | None = None
         self._circuit_breaker: CircuitBreakerOptions | None = None
         self._schema: type[BaseModel] | None = None
         self._headers: dict[str, str] = {}
@@ -87,6 +89,25 @@ class FetchBuilder:
             The builder instance for method chaining.
         """
         self._rate_limit = options
+        return self
+
+    def with_rate_limit_retry(self, options: RateLimitRetryOptions | None) -> FetchBuilder:
+        """Configure retry behavior specifically for rate-limit rejections.
+
+        When the in-process sliding-window rate limiter rejects a request, the
+        rejection is retried inside a dedicated inner loop using these options
+        rather than consuming the main retry budget. Mirrors the Go port's
+        `WithRateLimitRetry` and the TypeScript `containerOptions.rateLimit.retry`
+        field.
+
+        Args:
+            options: Retry configuration for rate-limit rejections. Pass None
+                to clear the setting.
+
+        Returns:
+            The builder instance for method chaining.
+        """
+        self._rate_limit_retry = options
         return self
 
     def with_circuit_breaker(self, options: CircuitBreakerOptions) -> FetchBuilder:
@@ -181,9 +202,10 @@ class FetchBuilder:
             A FetchOptions instance with all configured settings.
         """
         container_options: FetchContainerOptions | None = None
-        if self._rate_limit or self._circuit_breaker:
+        if self._rate_limit or self._circuit_breaker or self._rate_limit_retry:
             container_options = FetchContainerOptions(
                 rate_limit=self._rate_limit,
+                rate_limit_retry=self._rate_limit_retry,
                 circuit_breaker=self._circuit_breaker,
             )
 

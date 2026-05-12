@@ -160,12 +160,28 @@ class CircuitBreakerOptions:
     """Seconds to wait before transitioning from open to half-open."""
 
 
+# Rate-limit-specific retry options share the same shape as the main RetryOptions.
+# This mirrors the Go port (`type RateLimitRetryOptions = RetryOptions`) and the
+# TypeScript container-options `rateLimit.retry` field — both of which reuse the
+# main RetryOptions shape.
+RateLimitRetryOptions = RetryOptions
+
+
 @dataclass
 class FetchContainerOptions:
     """Container-level options for rate limiting and circuit breaking."""
 
     rate_limit: RateLimitOptions | None = None
     """Rate limiting configuration."""
+
+    rate_limit_retry: RateLimitRetryOptions | None = None
+    """Retry behavior applied specifically to rate-limit rejections.
+
+    When the in-process sliding-window rate limiter rejects a request, the
+    rejection is retried within a dedicated inner loop using these options so
+    it does not consume the main retry budget. Mirrors the TypeScript
+    container-options `rateLimit.retry` field.
+    """
 
     circuit_breaker: CircuitBreakerOptions | None = None
     """Circuit breaker configuration."""

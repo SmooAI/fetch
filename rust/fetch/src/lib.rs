@@ -63,8 +63,8 @@ pub use error::FetchError;
 pub use rate_limit::SlidingWindowRateLimiter;
 pub use response::FetchResponse;
 pub use types::{
-    FetchContainerOptions, FetchOptions, Method, RequestInit, RetryCallback, RetryContext,
-    RetryDecision, RetryOptions,
+    FetchContainerOptions, FetchOptions, Method, RateLimitRetryOptions, RequestInit, RetryCallback,
+    RetryContext, RetryDecision, RetryOptions,
 };
 
 /// Convenience function: perform a single fetch with default options.
@@ -79,7 +79,7 @@ pub async fn fetch<T: serde::de::DeserializeOwned + Clone + Send + 'static>(
         timeout: Some(defaults::default_timeout_options()),
         retry: Some(defaults::default_retry_options()),
     };
-    client::fetch::<T>(url, init, Some(options), None, None, None).await
+    client::fetch::<T>(url, init, Some(options), None, None, None, None).await
 }
 
 #[cfg(test)]

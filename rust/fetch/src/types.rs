@@ -107,6 +107,16 @@ pub struct RateLimitOptions {
     pub limit_period_ms: u64,
 }
 
+/// Retry options applied specifically to rate-limit rejections.
+///
+/// Shares the same shape as [`RetryOptions`], matching the Go port
+/// (`type RateLimitRetryOptions = RetryOptions`) and the TypeScript
+/// `containerOptions.rateLimit.retry` field. When the in-process
+/// sliding-window rate limiter rejects a request, the rejection is retried
+/// inside a dedicated inner loop using these options rather than consuming the
+/// main retry budget.
+pub type RateLimitRetryOptions = RetryOptions;
+
 /// Configuration options for the circuit breaker.
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerOptions {
@@ -123,6 +133,14 @@ pub struct CircuitBreakerOptions {
 pub struct FetchContainerOptions {
     /// Rate limiting configuration.
     pub rate_limit: Option<RateLimitOptions>,
+    /// Retry behavior applied specifically to rate-limit rejections.
+    ///
+    /// When the sliding-window rate limiter rejects a request, the rejection is
+    /// retried inside a dedicated inner loop using these options rather than
+    /// consuming the main retry budget. Mirrors the Go port's
+    /// `WithRateLimitRetry` and the TypeScript `containerOptions.rateLimit.retry`
+    /// field.
+    pub rate_limit_retry: Option<RateLimitRetryOptions>,
     /// Circuit breaker configuration.
     pub circuit_breaker: Option<CircuitBreakerOptions>,
 }

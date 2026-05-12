@@ -244,11 +244,11 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
     if container_options and container_options.circuit_breaker:
         circuit_breaker = CircuitBreaker(container_options.circuit_breaker)
 
+    # Rate-limit-specific retry options (separate from the main retry loop).
+    rate_limit_retry = container_options.rate_limit_retry if container_options else None
+
     async def _execute() -> FetchResponse[Any]:
         """Inner execution: rate limit -> circuit breaker -> HTTP call -> parse."""
-        # Rate limit check
-        if rate_limiter is not None:
-            await rate_limiter.acquire()
 
         async def _do_request() -> FetchResponse[Any]:
             try:
@@ -261,11 +261,48 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
                     url=current_url,
                 ) from e
 
+        async def _gated() -> FetchResponse[Any]:
+            # Rate limit check
+            if rate_limiter is not None:
+                await rate_limiter.acquire()
+            return await _do_request()
+
+        # If a rate-limit-specific retry policy is configured AND a rate limiter
+        # is active, run the gated call inside its own retry loop. Only
+        # RateLimitError rejections drive that inner loop — everything else
+        # falls through to the main retry loop below.
+        if rate_limiter is not None and rate_limit_retry is not None and rate_limit_retry.attempts > 0:
+            rl_retry_opts: RetryOptions = rate_limit_retry
+
+            def _should_retry_rate_limit(error: Exception, _attempt: int) -> bool | float:
+                if isinstance(error, RateLimitError):
+                    return True
+                # Non-rate-limit errors: propagate so the outer retry loop sees them.
+                return False
+
+            async def _do_with_rl_retry() -> FetchResponse[Any]:
+                try:
+                    return await execute_with_retry(
+                        func=_gated,
+                        options=rl_retry_opts,
+                        should_retry=_should_retry_rate_limit,
+                    )
+                except RetryError as exhausted:
+                    # Surface the underlying RateLimitError so the outer logic
+                    # (which doesn't retry RateLimitError) sees the original.
+                    if isinstance(exhausted.last_error, RateLimitError):
+                        raise exhausted.last_error from exhausted
+                    raise
+
+            request_fn = _do_with_rl_retry
+        else:
+            request_fn = _gated
+
         # Circuit breaker wrapping
         if circuit_breaker is not None:
-            return await circuit_breaker.call(_do_request)
+            return await circuit_breaker.call(request_fn)
         else:
-            return await _do_request()
+            return await request_fn()
 
     # Execute with error hook wrapping
     try:

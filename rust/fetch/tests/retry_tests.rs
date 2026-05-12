@@ -143,9 +143,10 @@ async fn test_retry_succeeds_after_failures() {
         }),
     };
 
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
 
     assert!(response.ok);
     assert_eq!(response.status, 200);
@@ -197,7 +198,7 @@ async fn test_retry_exhausted() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -253,7 +254,7 @@ async fn test_non_retryable_error_not_retried() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     // 404 is not retryable, so only 1 call should be made
@@ -303,9 +304,10 @@ async fn test_retry_with_retry_after_header() {
     };
 
     let start = std::time::Instant::now();
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
 
     let elapsed = start.elapsed();
     assert!(response.ok);
@@ -364,9 +366,10 @@ async fn test_fast_first_skips_initial_delay() {
     };
 
     let start = std::time::Instant::now();
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
     let elapsed = start.elapsed();
 
     assert!(response.ok);
@@ -438,9 +441,10 @@ async fn test_on_rejection_retry_decision_overrides_delay() {
     };
 
     let start = std::time::Instant::now();
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
     let elapsed = start.elapsed();
 
     assert!(response.ok);
@@ -495,7 +499,7 @@ async fn test_on_rejection_abort_stops_retry_loop() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     // Abort surfaces the underlying HttpResponse error rather than wrapping in
     // `FetchError::Retry`.
@@ -543,9 +547,10 @@ async fn test_on_rejection_default_falls_through_to_exponential() {
         }),
     };
 
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
     assert!(response.ok);
     assert_eq!(call_count.load(Ordering::SeqCst), 2);
 }
@@ -594,7 +599,7 @@ async fn test_on_rejection_skip_consumes_attempt_without_sleep() {
 
     let start = std::time::Instant::now();
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
     let elapsed = start.elapsed();
 
     assert!(matches!(result, Err(FetchError::Retry { .. })));

@@ -13,8 +13,8 @@ use crate::hooks::{
 use crate::rate_limit::SlidingWindowRateLimiter;
 use crate::response::FetchResponse;
 use crate::types::{
-    CircuitBreakerOptions, FetchContainerOptions, FetchOptions, RateLimitOptions, RequestInit,
-    RetryCallback, RetryOptions, TimeoutOptions,
+    CircuitBreakerOptions, FetchContainerOptions, FetchOptions, RateLimitOptions,
+    RateLimitRetryOptions, RequestInit, RetryCallback, RetryOptions, TimeoutOptions,
 };
 
 /// Builder for creating configured fetch functions with retry, timeout, rate limiting,
@@ -140,6 +140,18 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
         self
     }
 
+    /// Configure retry behavior specifically for rate-limit rejections.
+    ///
+    /// When the in-process sliding-window rate limiter rejects a request, the
+    /// rejection is retried inside a dedicated inner loop using these options
+    /// rather than consuming the main retry budget. Mirrors the Go port's
+    /// `WithRateLimitRetry` and the TypeScript
+    /// `containerOptions.rateLimit.retry` field.
+    pub fn with_rate_limit_retry(mut self, options: RateLimitRetryOptions) -> Self {
+        self.container_options.rate_limit_retry = Some(options);
+        self
+    }
+
     /// Configure the circuit breaker.
     pub fn with_circuit_breaker(
         mut self,
@@ -198,6 +210,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             fetch_options: self.fetch_options,
             default_init: self.default_init,
             rate_limiter,
+            rate_limit_retry: self.container_options.rate_limit_retry,
             circuit_breaker,
             hooks: Arc::new(self.hooks),
         }
@@ -216,6 +229,7 @@ pub struct FetchClient<T: DeserializeOwned + Clone + Send + 'static> {
     fetch_options: FetchOptions,
     default_init: Option<RequestInit>,
     rate_limiter: Option<SlidingWindowRateLimiter>,
+    rate_limit_retry: Option<RateLimitRetryOptions>,
     circuit_breaker: Option<CircuitBreaker>,
     hooks: Arc<LifecycleHooks<T>>,
 }
@@ -235,6 +249,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
             merged_init,
             Some(self.fetch_options.clone()),
             self.rate_limiter.as_ref(),
+            self.rate_limit_retry.as_ref(),
             self.circuit_breaker.as_ref(),
             Some(self.hooks.as_ref()),
         )
@@ -255,6 +270,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
             merged_init,
             Some(options),
             self.rate_limiter.as_ref(),
+            self.rate_limit_retry.as_ref(),
             self.circuit_breaker.as_ref(),
             Some(self.hooks.as_ref()),
         )
