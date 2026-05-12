@@ -58,7 +58,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Re-export commonly used items at crate root
 pub use builder::{FetchBuilder, FetchClient};
-pub use circuit_breaker::{CircuitBreaker, CircuitState};
+pub use circuit_breaker::{CircuitBreaker, CircuitState, CircuitStateChangeCallback};
 pub use error::FetchError;
 pub use rate_limit::SlidingWindowRateLimiter;
 pub use response::FetchResponse;

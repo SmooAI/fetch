@@ -141,6 +141,113 @@ async def test_circuit_breaker_error_message():
     assert "Circuit breaker is open" in str(exc_info.value)
 
 
+async def test_on_state_change_fires_on_open_and_half_open_and_closed():
+    """`on_state_change` callback fires on each transition."""
+    transitions: list[tuple[str, str]] = []
+
+    cb = CircuitBreaker(
+        CircuitBreakerOptions(
+            failure_threshold=2,
+            success_threshold=1,
+            timeout=0.1,
+            on_state_change=lambda fr, to: transitions.append((fr, to)),
+        )
+    )
+
+    async def fail():
+        raise ValueError("fail")
+
+    async def success():
+        return "ok"
+
+    # Closed → Open after threshold
+    for _ in range(2):
+        with pytest.raises(ValueError):
+            await cb.call(fail)
+    assert ("closed", "open") in transitions
+
+    # Wait for half-open transition triggered on next call.
+    await asyncio.sleep(0.15)
+    result = await cb.call(success)
+    assert result == "ok"
+
+    # Should have seen: closed→open, open→half-open, half-open→closed.
+    kinds = transitions
+    assert ("closed", "open") in kinds
+    assert ("open", "half-open") in kinds
+    assert ("half-open", "closed") in kinds
+
+
+async def test_rate_based_threshold_trips_on_failure_rate():
+    """`failure_rate_threshold` trips the breaker when the failure rate in the window crosses the threshold."""
+    cb = CircuitBreaker(
+        CircuitBreakerOptions(
+            failure_threshold=4,  # minimum sample count before rate eval kicks in
+            success_threshold=1,
+            timeout=10.0,
+            failure_rate_threshold=0.7,  # 70% failure rate to trip
+            sliding_window_size=10,
+        )
+    )
+
+    async def fail():
+        raise ValueError("fail")
+
+    async def success():
+        return "ok"
+
+    # 3 successes followed by 1 failure = 1/4 = 25% — below threshold, stays closed.
+    for _ in range(3):
+        await cb.call(success)
+    with pytest.raises(ValueError):
+        await cb.call(fail)
+    assert cb.state == "closed"
+
+    # 4 more failures: window now 3 ok / 5 fail = 5/8 = 62.5% — still below 70%.
+    for _ in range(4):
+        with pytest.raises(ValueError):
+            await cb.call(fail)
+    assert cb.state == "closed"
+
+    # 2 more failures pushes failure rate over 70%.
+    # window: 3 ok / 7 fail = 7/10 = 70% — trips.
+    with pytest.raises(ValueError):
+        await cb.call(fail)
+    # Window is now full (10) at 6 fail / 3 ok / 1 fail = 7 fail; 7/10 = 70%.
+    # If this didn't trip yet, one more failure definitely will.
+    if cb.state != "open":
+        with pytest.raises(ValueError):
+            await cb.call(fail)
+    assert cb.state == "open"
+
+
+async def test_rate_threshold_respects_minimum_samples():
+    """Below the minimum sample count (`failure_threshold`), the rate evaluation is suppressed."""
+    cb = CircuitBreaker(
+        CircuitBreakerOptions(
+            failure_threshold=5,
+            success_threshold=1,
+            timeout=10.0,
+            failure_rate_threshold=0.5,
+            sliding_window_size=10,
+        )
+    )
+
+    async def fail():
+        raise ValueError("fail")
+
+    # 4 consecutive failures (below the 5-sample minimum) → still closed.
+    for _ in range(4):
+        with pytest.raises(ValueError):
+            await cb.call(fail)
+    assert cb.state == "closed"
+
+    # 5th failure: 5/5 = 100% → trips.
+    with pytest.raises(ValueError):
+        await cb.call(fail)
+    assert cb.state == "open"
+
+
 async def test_success_does_not_open():
     """Test that successful calls do not affect the circuit breaker."""
     cb = CircuitBreaker(

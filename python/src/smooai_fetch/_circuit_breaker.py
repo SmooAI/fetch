@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
 from enum import Enum
 from typing import TypeVar
@@ -30,8 +31,9 @@ class CircuitBreaker:
     """An async-compatible circuit breaker.
 
     State transitions:
-    - CLOSED: Normal operation. Failures are counted.
-    - OPEN: Requests are rejected immediately. After timeout, transitions to HALF_OPEN.
+    - CLOSED: Normal operation. Failures are counted (and optionally tracked over a
+      sliding window when `failure_rate_threshold` is set).
+    - OPEN: Requests are rejected immediately. After `timeout`, transitions to HALF_OPEN.
     - HALF_OPEN: A limited number of requests are allowed through. If they succeed
       (reaching success_threshold), transitions to CLOSED. If one fails, transitions
       back to OPEN.
@@ -41,11 +43,16 @@ class CircuitBreaker:
         self._failure_threshold = options.failure_threshold
         self._success_threshold = options.success_threshold
         self._timeout = options.timeout  # seconds
+        self._failure_rate_threshold = options.failure_rate_threshold
+        self._sliding_window_size = max(1, options.sliding_window_size)
+        self._on_state_change = options.on_state_change
 
         self._state = CircuitState.CLOSED
         self._failure_count = 0
         self._success_count = 0
         self._last_failure_time: float | None = None
+        # Recent outcomes window: True = success, False = failure.
+        self._outcomes: deque[bool] = deque(maxlen=self._sliding_window_size)
         self._lock = asyncio.Lock()
 
     @property
@@ -93,37 +100,65 @@ class CircuitBreaker:
 
         return result
 
+    def _transition(self, target: CircuitState) -> None:
+        """Move to `target` and fire the on_state_change callback (if registered)."""
+        if self._state is target:
+            return
+        previous = self._state
+        self._state = target
+        if self._on_state_change is not None:
+            # Errors in user callbacks should not break the breaker's bookkeeping.
+            try:
+                self._on_state_change(previous.value, target.value)
+            except Exception:
+                pass
+
     def _get_state(self) -> CircuitState:
         """Get the current state, potentially transitioning OPEN -> HALF_OPEN."""
         if self._state == CircuitState.OPEN and self._last_failure_time is not None:
             elapsed = time.monotonic() - self._last_failure_time
             if elapsed >= self._timeout:
-                self._state = CircuitState.HALF_OPEN
+                self._transition(CircuitState.HALF_OPEN)
                 self._success_count = 0
                 return CircuitState.HALF_OPEN
         return self._state
 
     def _record_success(self) -> None:
         """Record a successful call."""
+        self._outcomes.append(True)
         if self._state == CircuitState.HALF_OPEN:
             self._success_count += 1
             if self._success_count >= self._success_threshold:
-                self._state = CircuitState.CLOSED
+                self._transition(CircuitState.CLOSED)
                 self._failure_count = 0
                 self._success_count = 0
+                self._outcomes.clear()
         elif self._state == CircuitState.CLOSED:
-            # Reset failure count on success in closed state
+            # Reset failure count on success in closed state.
             self._failure_count = 0
 
     def _record_failure(self) -> None:
         """Record a failed call."""
+        self._outcomes.append(False)
         if self._state == CircuitState.HALF_OPEN:
-            # Any failure in half-open goes back to open
-            self._state = CircuitState.OPEN
+            # Any failure in half-open goes back to open.
+            self._transition(CircuitState.OPEN)
             self._last_failure_time = time.monotonic()
             self._success_count = 0
-        elif self._state == CircuitState.CLOSED:
+            return
+        if self._state == CircuitState.CLOSED:
             self._failure_count += 1
-            if self._failure_count >= self._failure_threshold:
-                self._state = CircuitState.OPEN
+            # Rate-based detection: when a threshold is configured and enough
+            # samples have been observed, evaluate the failure ratio over the
+            # sliding window.
+            if self._failure_rate_threshold is not None and len(self._outcomes) >= self._failure_threshold:
+                failures = sum(1 for ok in self._outcomes if not ok)
+                rate = failures / len(self._outcomes)
+                if rate >= self._failure_rate_threshold:
+                    self._transition(CircuitState.OPEN)
+                    self._last_failure_time = time.monotonic()
+                    return
+            # Count-based detection: trip when consecutive failures reach the threshold.
+            if self._failure_rate_threshold is None and self._failure_count >= self._failure_threshold:
+                self._transition(CircuitState.OPEN)
                 self._last_failure_time = time.monotonic()

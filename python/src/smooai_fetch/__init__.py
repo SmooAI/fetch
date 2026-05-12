@@ -45,6 +45,7 @@ from smooai_fetch._retry import calculate_backoff, is_retryable
 from smooai_fetch._types import (
     AuthTokenProvider,
     CircuitBreakerOptions,
+    CircuitStateChangeCallback,
     FetchContainerOptions,
     FetchOptions,
     LifecycleHooks,
@@ -69,6 +70,7 @@ __all__ = [
     # Types
     "AuthTokenProvider",
     "CircuitBreakerOptions",
+    "CircuitStateChangeCallback",
     "FetchContainerOptions",
     "FetchOptions",
     "LifecycleHooks",
