@@ -153,18 +153,52 @@ class RateLimitOptions:
     """Duration of the sliding window in milliseconds."""
 
 
+CircuitStateChangeCallback = Callable[[str, str], None]
+"""Callback invoked when the circuit breaker transitions between states.
+
+Receives `(from_state, to_state)` where each value is one of `"closed"`,
+`"open"`, or `"half-open"`. Mirrors the Go port's `OnStateChange` callback.
+"""
+
+
 @dataclass
 class CircuitBreakerOptions:
     """Configuration options for circuit breaker behavior."""
 
     failure_threshold: int = 5
-    """Number of failures before the circuit opens."""
+    """Number of failures before the circuit opens.
+
+    Used when `failure_rate_threshold` is None (the default). With a rate-based
+    threshold this still acts as the minimum sample count before the rate
+    evaluation kicks in.
+    """
 
     success_threshold: int = 2
     """Number of successes in half-open state to close the circuit."""
 
     timeout: float = 30.0
     """Seconds to wait before transitioning from open to half-open."""
+
+    failure_rate_threshold: float | None = None
+    """Optional failure rate (0.0–1.0) over a sliding window that trips the breaker.
+
+    When set, the breaker tracks the most recent `sliding_window_size` outcomes
+    and trips when the failure ratio meets or exceeds this threshold (after
+    `failure_threshold` minimum samples have been observed). Mirrors the TS
+    `failureRateThreshold` setting.
+    """
+
+    sliding_window_size: int = 10
+    """Number of recent outcomes to retain for rate-based detection.
+
+    Only consulted when `failure_rate_threshold` is set.
+    """
+
+    on_state_change: CircuitStateChangeCallback | None = None
+    """Optional callback invoked when the breaker transitions between states.
+
+    Receives `(from_state, to_state)`. Useful for telemetry / alerting.
+    """
 
 
 # Rate-limit-specific retry options share the same shape as the main RetryOptions.

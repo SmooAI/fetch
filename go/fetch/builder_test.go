@@ -3,6 +3,7 @@ package fetch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -342,5 +343,49 @@ func TestClientBuilder_WithContainerOptions_NilFieldsLeaveUnchanged(t *testing.T
 	}
 	if client.rateLimitRetry != nil {
 		t.Error("expected rate-limit retry to remain unset")
+	}
+}
+
+// TestClientBuilder_WithCircuitBreakerStateChange verifies that the dedicated
+// builder helper exposes sony/gobreaker's OnStateChange callback at the
+// top-level builder API (SMOODEV-950).
+func TestClientBuilder_WithCircuitBreakerStateChange(t *testing.T) {
+	type stateChange struct{ from, to CircuitBreakerState }
+	var observed []stateChange
+	hook := func(_ string, from, to CircuitBreakerState) {
+		observed = append(observed, stateChange{from, to})
+	}
+
+	client := NewClientBuilder().
+		WithCircuitBreaker("rate-state-cb", &CircuitBreakerOptions{
+			MaxRequests: 1,
+			Timeout:     50 * time.Millisecond,
+			ReadyToTrip: func(c CircuitBreakerCounts) bool {
+				return c.ConsecutiveFailures >= 2
+			},
+		}).
+		WithCircuitBreakerStateChange(hook).
+		Build()
+
+	if client.circuitBreaker == nil {
+		t.Fatal("expected circuit breaker to be configured")
+	}
+
+	// Drive 2 consecutive failures → breaker should trip to open.
+	testErr := errors.New("boom")
+	for i := 0; i < 2; i++ {
+		_, _ = client.circuitBreaker.Execute(context.Background(), func(_ context.Context) (any, error) {
+			return nil, testErr
+		})
+	}
+	if got := client.circuitBreaker.State(); got != CircuitBreakerStateOpen {
+		t.Fatalf("expected breaker to be open, got %d", got)
+	}
+	if len(observed) == 0 {
+		t.Fatal("expected at least one state-change callback invocation")
+	}
+	// The first transition should be Closed → Open.
+	if observed[0].from != CircuitBreakerStateClosed || observed[0].to != CircuitBreakerStateOpen {
+		t.Errorf("expected Closed→Open as first transition, got %d→%d", observed[0].from, observed[0].to)
 	}
 }

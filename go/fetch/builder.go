@@ -82,6 +82,20 @@ func (b *ClientBuilder) WithCircuitBreaker(name string, opts *CircuitBreakerOpti
 	return b
 }
 
+// WithCircuitBreakerStateChange registers a state-change callback on the
+// configured circuit breaker. If WithCircuitBreaker has not been called, a
+// fresh CircuitBreakerOptions is created so the callback has somewhere to live.
+//
+// This exposes the underlying sony/gobreaker `OnStateChange` at the builder
+// level (mirrors the SMOODEV-950 onStateChange parity surface).
+func (b *ClientBuilder) WithCircuitBreakerStateChange(fn func(name string, from, to CircuitBreakerState)) *ClientBuilder {
+	if b.circuitBreakerOpts == nil {
+		b.circuitBreakerOpts = &CircuitBreakerOptions{}
+	}
+	b.circuitBreakerOpts.OnStateChange = fn
+	return b
+}
+
 // WithHooks sets lifecycle hooks for the client.
 func (b *ClientBuilder) WithHooks(hooks *LifecycleHooks) *ClientBuilder {
 	b.hooks = hooks
