@@ -120,7 +120,7 @@ impl CircuitBreaker {
     /// Get the current state of the circuit breaker.
     pub async fn state(&self) -> CircuitState {
         let inner = self.inner.lock().await;
-        inner.state.clone()
+        inner.state
     }
 
     /// Check if a request is allowed to proceed. If the circuit is open
@@ -198,7 +198,6 @@ impl CircuitBreaker {
                                 rate = failures / total,
                                 "Circuit breaker transitioning from Closed to Open (rate-based)"
                             );
-                            return;
                         }
                     }
                 } else if inner.failure_count >= self.failure_threshold {
