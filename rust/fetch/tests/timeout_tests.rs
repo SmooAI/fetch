@@ -33,9 +33,10 @@ async fn test_request_completes_before_timeout() {
         retry: None,
     };
 
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
 
     assert!(response.ok);
     assert_eq!(response.status, 200);
@@ -67,7 +68,7 @@ async fn test_request_times_out() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {

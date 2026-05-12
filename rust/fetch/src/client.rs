@@ -13,7 +13,63 @@ use crate::rate_limit::SlidingWindowRateLimiter;
 use crate::response::FetchResponse;
 use crate::retry;
 use crate::timeout;
-use crate::types::{FetchOptions, RequestInit};
+use crate::types::{FetchOptions, RateLimitRetryOptions, RequestInit};
+
+/// Acquire a rate-limit slot using a dedicated retry loop.
+///
+/// Unlike the main retry loop, this is driven by [`FetchError::RateLimit`]
+/// rejections (which are not "retryable" per [`FetchError::is_retryable`]),
+/// so the standard exponential+jitter backoff in [`crate::retry`] does not
+/// apply directly. The honored decision order matches the Go port:
+///
+/// 1. If the limiter reports `remaining_ms`, use that as the sleep duration
+///    (mirrors a `Retry-After` header).
+/// 2. Otherwise fall back to [`retry::calculate_backoff`] using `rl_retry`.
+/// 3. `fast_first = true` short-circuits the very first delay to zero.
+async fn acquire_with_retry(
+    limiter: &SlidingWindowRateLimiter,
+    rl_retry: &RateLimitRetryOptions,
+) -> Result<(), FetchError> {
+    let max_attempts = 1 + rl_retry.attempts;
+    let mut last_err: Option<FetchError> = None;
+
+    for attempt in 0..max_attempts {
+        match limiter.try_acquire().await {
+            Ok(()) => return Ok(()),
+            Err(FetchError::RateLimit { remaining_ms }) => {
+                let err = FetchError::RateLimit { remaining_ms };
+                if attempt + 1 >= max_attempts {
+                    last_err = Some(err);
+                    break;
+                }
+
+                // Default decision: sleep for remaining window time, capped by max_interval_ms.
+                let mut delay_ms: u64 = if rl_retry.fast_first && attempt == 0 {
+                    0
+                } else if remaining_ms > 0 {
+                    remaining_ms
+                } else {
+                    retry::calculate_backoff(attempt, rl_retry)
+                };
+
+                if let Some(max) = rl_retry.max_interval_ms {
+                    delay_ms = delay_ms.min(max);
+                }
+
+                last_err = Some(err);
+                if delay_ms > 0 {
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                }
+            }
+            Err(other) => return Err(other),
+        }
+    }
+
+    Err(FetchError::Retry {
+        attempts: rl_retry.attempts,
+        source: Box::new(last_err.unwrap_or(FetchError::RateLimit { remaining_ms: 0 })),
+    })
+}
 
 /// Perform a single HTTP request (no retry, no timeout wrapper).
 async fn do_single_request<T: DeserializeOwned>(
@@ -108,6 +164,7 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
     init: RequestInit,
     options: Option<FetchOptions>,
     rate_limiter: Option<&SlidingWindowRateLimiter>,
+    rate_limit_retry: Option<&RateLimitRetryOptions>,
     circuit_breaker: Option<&CircuitBreaker>,
     hooks: Option<&LifecycleHooks<T>>,
 ) -> Result<FetchResponse<T>, FetchError> {
@@ -134,8 +191,20 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
     );
 
     // 2. Rate limit check
+    //
+    // When `rate_limit_retry` is configured AND a rate limiter is active, run
+    // `try_acquire()` inside a dedicated retry loop so rate-limit rejections do
+    // not consume the main retry budget. Otherwise fall back to the existing
+    // `acquire()` behavior (which blocks until a slot is available).
     if let Some(limiter) = rate_limiter {
-        limiter.acquire().await?;
+        match rate_limit_retry {
+            Some(rl_retry) if rl_retry.attempts > 0 => {
+                acquire_with_retry(limiter, rl_retry).await?;
+            }
+            _ => {
+                limiter.acquire().await?;
+            }
+        }
     }
 
     // 3. Circuit breaker check

@@ -38,7 +38,7 @@ async fn test_basic_get_request() {
         retry: None,
     };
 
-    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None)
+    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None, None)
         .await
         .unwrap();
 
@@ -82,7 +82,7 @@ async fn test_basic_post_request_with_body() {
         retry: None,
     };
 
-    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None)
+    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None, None)
         .await
         .unwrap();
 
@@ -122,7 +122,7 @@ async fn test_failed_request_404() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -168,7 +168,7 @@ async fn test_error_response_with_type_code_message() {
     };
 
     let result =
-        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None).await;
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -214,9 +214,10 @@ async fn test_non_json_response() {
         retry: None,
     };
 
-    let response = client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None)
-        .await
-        .unwrap();
+    let response =
+        client::fetch::<serde_json::Value>(&url, init, Some(options), None, None, None, None)
+            .await
+            .unwrap();
 
     assert!(response.ok);
     assert_eq!(response.status, 200);
@@ -254,7 +255,7 @@ async fn test_request_with_custom_headers() {
         retry: None,
     };
 
-    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None)
+    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None, None)
         .await
         .unwrap();
 
@@ -287,7 +288,8 @@ async fn test_schema_validation_error_on_type_mismatch() {
         retry: None,
     };
 
-    let result = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None).await;
+    let result =
+        client::fetch::<TestResponse>(&url, init, Some(options), None, None, None, None).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -323,7 +325,7 @@ async fn test_default_method_is_get() {
         retry: None,
     };
 
-    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None)
+    let response = client::fetch::<TestResponse>(&url, init, Some(options), None, None, None, None)
         .await
         .unwrap();
 
