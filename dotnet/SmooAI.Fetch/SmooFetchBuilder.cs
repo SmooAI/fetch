@@ -157,6 +157,37 @@ public sealed class SmooFetchBuilder
     }
 
     /// <summary>
+    /// Configure an in-process sliding-window rate limiter. Every outgoing
+    /// request must acquire a permit before being dispatched, and rate-limit
+    /// rejections flow through the existing retry pipeline (so they are
+    /// retried with backoff like any other transient failure). The optional
+    /// <paramref name="onRejected"/> callback fires for observability.
+    /// </summary>
+    public SmooFetchBuilder WithRateLimit(int maxRequests, TimeSpan window, Action<RateLimitRejectedContext>? onRejected = null)
+    {
+        _options.RateLimiter = new RateLimiterOptions(maxRequests, window)
+        {
+            OnRejected = onRejected,
+        };
+        return this;
+    }
+
+    /// <summary>Apply a fully-constructed <see cref="RateLimiterOptions"/> instance.</summary>
+    public SmooFetchBuilder WithRateLimit(RateLimiterOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _options.RateLimiter = options;
+        return this;
+    }
+
+    /// <summary>Disable the rate limiter (if previously configured).</summary>
+    public SmooFetchBuilder WithNoRateLimit()
+    {
+        _options.RateLimiter = null;
+        return this;
+    }
+
+    /// <summary>
     /// Toggle <see cref="RetryPolicy.FastFirst"/> on the currently-configured retry
     /// policy. When the retry policy has no retries configured this re-enables retries
     /// using <see cref="RetryPolicy.Default"/>.
@@ -193,6 +224,7 @@ public sealed class SmooFetchBuilder
             o.JsonOptions = _options.JsonOptions;
             o.Hooks = _options.Hooks;
             o.CircuitBreaker = _options.CircuitBreaker;
+            o.RateLimiter = _options.RateLimiter;
             foreach (var kvp in _options.DefaultHeaders)
             {
                 o.DefaultHeaders[kvp.Key] = kvp.Value;

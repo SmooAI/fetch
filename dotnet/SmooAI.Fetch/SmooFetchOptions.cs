@@ -48,4 +48,11 @@ public sealed class SmooFetchOptions
 
     /// <summary>Optional circuit breaker configuration. When set, a Polly circuit breaker is composed around the retry pipeline.</summary>
     public CircuitBreakerOptions? CircuitBreaker { get; set; }
+
+    /// <summary>
+    /// Optional in-process sliding-window rate limiter. When set, every outgoing
+    /// request must acquire a permit before being dispatched. State is shared
+    /// across all calls on the constructed <see cref="SmooFetch"/>.
+    /// </summary>
+    public RateLimiterOptions? RateLimiter { get; set; }
 }
