@@ -11,6 +11,7 @@ use smooai_fetch::builder::FetchBuilder;
 use smooai_fetch::types::{AuthTokenProvider, Method, RequestInit};
 
 #[derive(Deserialize, Clone, Debug)]
+#[allow(dead_code)]
 struct TestReply {
     ok: bool,
 }
