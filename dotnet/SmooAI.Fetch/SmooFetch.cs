@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
+using Polly.CircuitBreaker;
 
 namespace SmooAI.Fetch;
 
@@ -32,8 +33,55 @@ public sealed class SmooFetch
         _ownsHttpClient = ownsHttpClient;
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? NullLogger<SmooFetch>.Instance;
-        _pipeline = options.RetryPolicy.BuildPipeline();
+        _pipeline = BuildPipeline(options);
     }
+
+    private static ResiliencePipeline<HttpResponseMessage> BuildPipeline(SmooFetchOptions options)
+    {
+        var retryPipeline = options.RetryPolicy.BuildPipeline();
+        if (options.CircuitBreaker is not { } cb)
+        {
+            return retryPipeline;
+        }
+
+        // Compose: caller -> circuit breaker -> retry -> http.
+        //
+        // Note: Polly v8's circuit breaker counts failures via ShouldHandle. We
+        // mirror the retry policy's failure predicate so the breaker trips on the
+        // same conditions (retryable statuses + transient exceptions).
+        var policy = options.RetryPolicy;
+        var breaker = new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
+            {
+                FailureRatio = 1.0,
+                MinimumThroughput = cb.FailureThreshold,
+                SamplingDuration = TimeSpan.FromSeconds(Math.Max(0.5, Math.Min(60, cb.OpenDuration.TotalSeconds))),
+                BreakDuration = cb.OpenDuration,
+                ShouldHandle = args =>
+                {
+                    if (args.Outcome.Exception is not null)
+                    {
+                        return ValueTask.FromResult(IsTransient(args.Outcome.Exception));
+                    }
+
+                    var response = args.Outcome.Result;
+                    return ValueTask.FromResult(response is not null && policy.ShouldRetryStatus(response.StatusCode));
+                },
+            })
+            .Build();
+
+        // Wrap the retry pipeline inside the breaker pipeline.
+        return new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddPipeline(breaker)
+            .AddPipeline(retryPipeline)
+            .Build();
+    }
+
+    private static bool IsTransient(Exception ex) =>
+        ex is HttpRequestException
+            or TaskCanceledException
+            or OperationCanceledException
+            or TimeoutException;
 
     /// <summary>
     /// Create a standalone <see cref="SmooFetch"/> with a self-managed <see cref="HttpClient"/>.
@@ -102,20 +150,54 @@ public sealed class SmooFetch
         ArgumentNullException.ThrowIfNull(request);
         await PrepareRequestAsync(request, cancellationToken).ConfigureAwait(false);
 
-        var response = await _pipeline.ExecuteAsync(async ct =>
+        // Lifecycle hooks: PreRequest fires once before the pipeline starts so it
+        // can observe / mutate the user-facing request. The hook does NOT see
+        // per-attempt clones (which would invite footguns with disposed content
+        // streams).
+        if (_options.Hooks?.PreRequest is { } pre)
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            linkedCts.CancelAfter(_options.Timeout);
-            var attemptRequest = await CloneRequestAsync(request).ConfigureAwait(false);
-            try
+            await pre(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _pipeline.ExecuteAsync(async ct =>
             {
-                return await _httpClient.SendAsync(attemptRequest, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token).ConfigureAwait(false);
-            }
-            finally
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                linkedCts.CancelAfter(_options.Timeout);
+                var attemptRequest = await CloneRequestAsync(request).ConfigureAwait(false);
+                try
+                {
+                    return await _httpClient.SendAsync(attemptRequest, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token).ConfigureAwait(false);
+                }
+                finally
+                {
+                    attemptRequest.Dispose();
+                }
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            if (_options.Hooks?.PostRequestErr is { } onErr)
             {
-                attemptRequest.Dispose();
+                try
+                {
+                    await onErr(ex, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Swallow hook-thrown errors so we always surface the original transport error.
+                }
             }
-        }, cancellationToken).ConfigureAwait(false);
+
+            throw;
+        }
+
+        if (response.IsSuccessStatusCode && _options.Hooks?.PostRequestOk is { } onOk)
+        {
+            await onOk(response, cancellationToken).ConfigureAwait(false);
+        }
 
         return response;
     }

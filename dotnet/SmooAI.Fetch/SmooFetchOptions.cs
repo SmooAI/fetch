@@ -42,4 +42,10 @@ public sealed class SmooFetchOptions
     /// Defaults to false so library consumers can still use <see cref="SmooFetch.Create(Action{SmooFetchOptions})"/>.
     /// </summary>
     public bool RequireHttpClientFactory { get; set; }
+
+    /// <summary>Optional lifecycle hooks invoked before/after each request.</summary>
+    public LifecycleHooks? Hooks { get; set; }
+
+    /// <summary>Optional circuit breaker configuration. When set, a Polly circuit breaker is composed around the retry pipeline.</summary>
+    public CircuitBreakerOptions? CircuitBreaker { get; set; }
 }

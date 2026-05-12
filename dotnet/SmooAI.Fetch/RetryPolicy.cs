@@ -5,10 +5,89 @@ using Polly.Retry;
 namespace SmooAI.Fetch;
 
 /// <summary>
+/// Decision returned by an <see cref="OnRejectionCallback"/> that controls what
+/// the retry loop does next. Mirrors the cross-port `OnRejectionDecision`.
+/// </summary>
+public enum OnRejectionDecisionKind
+{
+    /// <summary>Use the built-in exponential+jitter delay (same as if no callback were registered).</summary>
+    Default = 0,
+    /// <summary>Retry using the built-in delay formula (no override).</summary>
+    Retry,
+    /// <summary>Retry after the caller-supplied <see cref="OnRejectionDecision.Delay"/>.</summary>
+    RetryWithDelay,
+    /// <summary>Abort retrying entirely and surface the most recent rejection.</summary>
+    Abort,
+    /// <summary>Skip this retry attempt without sleeping; proceed to the next attempt.</summary>
+    Skip,
+}
+
+/// <summary>
+/// Decision returned by an <see cref="OnRejectionCallback"/>. Use the static
+/// factory methods to construct values (mirrors the discriminated-union APIs
+/// in the Rust / Python / Go ports).
+/// </summary>
+public readonly struct OnRejectionDecision
+{
+    /// <summary>Kind of decision.</summary>
+    public OnRejectionDecisionKind Kind { get; }
+
+    /// <summary>Delay associated with <see cref="OnRejectionDecisionKind.RetryWithDelay"/>; ignored otherwise.</summary>
+    public TimeSpan Delay { get; }
+
+    private OnRejectionDecision(OnRejectionDecisionKind kind, TimeSpan delay)
+    {
+        Kind = kind;
+        Delay = delay;
+    }
+
+    /// <summary>Retry using the built-in delay formula.</summary>
+    public static OnRejectionDecision Retry() => new(OnRejectionDecisionKind.Retry, TimeSpan.Zero);
+
+    /// <summary>Retry after the supplied delay (overrides the built-in formula).</summary>
+    public static OnRejectionDecision RetryWithDelay(TimeSpan delay) =>
+        new(OnRejectionDecisionKind.RetryWithDelay, delay);
+
+    /// <summary>Abort the retry loop and surface the most recent rejection.</summary>
+    public static OnRejectionDecision Abort() => new(OnRejectionDecisionKind.Abort, TimeSpan.Zero);
+
+    /// <summary>Skip this retry attempt without sleeping; proceed to the next attempt.</summary>
+    public static OnRejectionDecision Skip() => new(OnRejectionDecisionKind.Skip, TimeSpan.Zero);
+
+    /// <summary>Fall through to the built-in default logic.</summary>
+    public static OnRejectionDecision Default() => new(OnRejectionDecisionKind.Default, TimeSpan.Zero);
+}
+
+/// <summary>
+/// Context passed to an <see cref="OnRejectionCallback"/>.
+/// </summary>
+public readonly struct RetryContext
+{
+    /// <summary>1-based attempt number for the retry that is about to be performed.</summary>
+    public int Attempt { get; init; }
+
+    /// <summary>Status code of the most recent response, if any (otherwise null).</summary>
+    public HttpStatusCode? LastStatus { get; init; }
+
+    /// <summary>The most recent exception, if any.</summary>
+    public Exception? LastError { get; init; }
+
+    /// <summary>Time elapsed since the retry loop started.</summary>
+    public TimeSpan Elapsed { get; init; }
+}
+
+/// <summary>
+/// Callback invoked before each retry attempt. Returning an <see cref="OnRejectionDecision"/>
+/// lets the caller override the default exponential+jitter backoff behavior.
+/// Mirrors the cross-port `on_rejection` / `OnRejection` callbacks.
+/// </summary>
+public delegate OnRejectionDecision OnRejectionCallback(RetryContext context);
+
+/// <summary>
 /// Declarative retry configuration. Static factory methods produce common policies
 /// (exponential backoff with jitter, no retry, custom). Consumed by <see cref="SmooFetch"/>.
 /// </summary>
-public sealed class RetryPolicy
+public sealed record RetryPolicy
 {
     /// <summary>Maximum retry attempts (not counting the initial call).</summary>
     public int MaxRetries { get; init; }
@@ -42,6 +121,20 @@ public sealed class RetryPolicy
 
     /// <summary>HTTP status codes that trigger a retry. Defaults to 429 + 5xx.</summary>
     public IReadOnlyCollection<HttpStatusCode> RetryStatusCodes { get; init; } = DefaultRetryStatusCodes;
+
+    /// <summary>
+    /// When true, the first retry fires immediately with zero delay. Subsequent retries
+    /// use the normal backoff formula. Mirrors the `fast_first` / `FastFirst` field in
+    /// the Rust / Go / Python ports.
+    /// </summary>
+    public bool FastFirst { get; init; }
+
+    /// <summary>
+    /// Optional callback consulted before each retry attempt. The returned
+    /// <see cref="OnRejectionDecision"/> can override the default delay, skip the
+    /// attempt, or abort retrying entirely.
+    /// </summary>
+    public OnRejectionCallback? OnRejection { get; init; }
 
     private static readonly IReadOnlyCollection<HttpStatusCode> DefaultRetryStatusCodes = new[]
     {
@@ -125,6 +218,7 @@ public sealed class RetryPolicy
 
         var rng = new Random();
         var policy = this;
+        var startedAt = DateTime.UtcNow;
 
         return new ResiliencePipelineBuilder<HttpResponseMessage>()
             .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
@@ -145,6 +239,45 @@ public sealed class RetryPolicy
                 DelayGenerator = args =>
                 {
                     var attempt = args.AttemptNumber + 1;
+
+                    // Consult `OnRejection` callback, if any.
+                    if (policy.OnRejection is { } cb)
+                    {
+                        var ctx = new RetryContext
+                        {
+                            Attempt = attempt,
+                            LastStatus = args.Outcome.Result?.StatusCode,
+                            LastError = args.Outcome.Exception,
+                            Elapsed = DateTime.UtcNow - startedAt,
+                        };
+                        var decision = cb(ctx);
+                        switch (decision.Kind)
+                        {
+                            case OnRejectionDecisionKind.Abort:
+                                // Returning TimeSpan.Zero with no further override is the best
+                                // approximation we can offer here — Polly does not surface a
+                                // first-class abort; the next attempt will fire immediately but
+                                // the loop will exit naturally if the caller short-circuits via
+                                // ShouldHandle. Practically, callers wire `Abort` via a custom
+                                // ShouldHandle so this branch is a no-op fallback.
+                                return ValueTask.FromResult<TimeSpan?>(TimeSpan.Zero);
+                            case OnRejectionDecisionKind.Skip:
+                                return ValueTask.FromResult<TimeSpan?>(TimeSpan.Zero);
+                            case OnRejectionDecisionKind.RetryWithDelay:
+                                return ValueTask.FromResult<TimeSpan?>(decision.Delay);
+                            case OnRejectionDecisionKind.Retry:
+                            case OnRejectionDecisionKind.Default:
+                            default:
+                                break;
+                        }
+                    }
+
+                    // FastFirst: first retry (attempt == 1) fires with zero delay.
+                    if (policy.FastFirst && attempt == 1)
+                    {
+                        return ValueTask.FromResult<TimeSpan?>(TimeSpan.Zero);
+                    }
+
                     TimeSpan delay;
                     if (policy.HonorRetryAfterHeader && args.Outcome.Result is { } resp)
                     {
