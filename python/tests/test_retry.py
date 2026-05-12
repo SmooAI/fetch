@@ -1,10 +1,19 @@
 """Tests for retry functionality."""
 
+import time
+
 import httpx
 import pytest
 import respx
 
-from smooai_fetch import FetchOptions, HTTPResponseError, RetryError, RetryOptions, fetch
+from smooai_fetch import (
+    FetchOptions,
+    HTTPResponseError,
+    OnRejectionDecision,
+    RetryError,
+    RetryOptions,
+    fetch,
+)
 from smooai_fetch._retry import calculate_backoff, is_retryable
 
 URL = "https://api.example.com/data"
@@ -179,6 +188,134 @@ class TestRetryExecution:
         with pytest.raises(HTTPResponseError):
             await fetch(URL, options)
 
+        assert route.call_count == 1
+
+    @respx.mock
+    async def test_max_interval_caps_backoff(self):
+        """max_interval_ms should cap the per-retry delay."""
+        options = RetryOptions(
+            initial_interval_ms=1000,
+            factor=10,  # base * 10^attempt grows quickly
+            jitter=0,
+            max_interval_ms=500,
+        )
+        # attempt 0: 1000 → capped at 500
+        assert calculate_backoff(0, options) == pytest.approx(0.5, abs=0.01)
+        # attempt 1: 10_000 → capped at 500
+        assert calculate_backoff(1, options) == pytest.approx(0.5, abs=0.01)
+
+    @respx.mock
+    async def test_fast_first_skips_initial_delay(self):
+        """fast_first=True should fire the first retry immediately."""
+        route = respx.get(URL)
+        route.side_effect = [
+            httpx.Response(500, json={"error": "fail"}, headers={"Content-Type": "application/json"}),
+            httpx.Response(200, json={"ok": True}, headers={"Content-Type": "application/json"}),
+        ]
+
+        options = FetchOptions(
+            retry=RetryOptions(
+                attempts=2,
+                # Massive interval to make it obvious if delay isn't skipped
+                initial_interval_ms=5_000,
+                jitter=0,
+                fast_first=True,
+            ),
+        )
+
+        start = time.monotonic()
+        response = await fetch(URL, options)
+        elapsed = time.monotonic() - start
+
+        assert response.ok
+        assert route.call_count == 2
+        # Without fast_first this would block ~5s. Should be far below that.
+        assert elapsed < 1.0, f"fast_first did not skip initial delay (took {elapsed:.2f}s)"
+
+    @respx.mock
+    async def test_on_rejection_abort_stops_retries(self):
+        """on_rejection returning ABORT surfaces the underlying error immediately."""
+        route = respx.get(URL)
+        route.side_effect = [
+            httpx.Response(500, json={"error": "fail"}, headers={"Content-Type": "application/json"}),
+            httpx.Response(200, json={"ok": True}, headers={"Content-Type": "application/json"}),
+        ]
+
+        calls: list[int] = []
+
+        def on_rejection(ctx):
+            calls.append(ctx.attempt)
+            return OnRejectionDecision.abort()
+
+        options = FetchOptions(
+            retry=RetryOptions(
+                attempts=3,
+                initial_interval_ms=10,
+                jitter=0,
+                on_rejection=on_rejection,
+            ),
+        )
+
+        with pytest.raises(HTTPResponseError):
+            await fetch(URL, options)
+
+        assert calls == [1]  # consulted once before the would-be first retry
+        assert route.call_count == 1
+
+    @respx.mock
+    async def test_on_rejection_retry_with_delay_overrides_default(self):
+        """on_rejection returning RETRY_WITH_DELAY uses that delay (not exp backoff)."""
+        route = respx.get(URL)
+        route.side_effect = [
+            httpx.Response(500, json={"error": "fail"}, headers={"Content-Type": "application/json"}),
+            httpx.Response(200, json={"ok": True}, headers={"Content-Type": "application/json"}),
+        ]
+
+        def on_rejection(_ctx):
+            return OnRejectionDecision.retry_with_delay(20)  # 20ms
+
+        options = FetchOptions(
+            retry=RetryOptions(
+                attempts=2,
+                # Default backoff would block ~5s; the callback should override.
+                initial_interval_ms=5_000,
+                jitter=0,
+                on_rejection=on_rejection,
+            ),
+        )
+
+        start = time.monotonic()
+        response = await fetch(URL, options)
+        elapsed = time.monotonic() - start
+
+        assert response.ok
+        assert route.call_count == 2
+        assert elapsed < 1.0, f"retry_with_delay did not override default backoff (took {elapsed:.2f}s)"
+
+    @respx.mock
+    async def test_on_rejection_skip_skips_attempt(self):
+        """on_rejection returning SKIP consumes the slot but never re-fires the request."""
+        route = respx.get(URL)
+        route.side_effect = [
+            httpx.Response(500, json={"error": "fail"}, headers={"Content-Type": "application/json"}),
+        ]
+
+        def on_rejection(_ctx):
+            return OnRejectionDecision.skip()
+
+        options = FetchOptions(
+            retry=RetryOptions(
+                attempts=2,
+                initial_interval_ms=10,
+                jitter=0,
+                on_rejection=on_rejection,
+            ),
+        )
+
+        with pytest.raises(RetryError):
+            await fetch(URL, options)
+
+        # initial + 2 skipped retries → only the initial real call hits the route
         assert route.call_count == 1
 
     @respx.mock

@@ -4,10 +4,88 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 import httpx
 from pydantic import BaseModel
+
+
+class OnRejectionDecisionKind(StrEnum):
+    """Kind of decision returned by an `on_rejection` callback."""
+
+    RETRY = "retry"
+    """Retry using the built-in exponential+jitter delay (no override)."""
+
+    RETRY_WITH_DELAY = "retry_with_delay"
+    """Retry after a caller-supplied delay (in milliseconds)."""
+
+    ABORT = "abort"
+    """Stop retrying and surface the most recent error."""
+
+    SKIP = "skip"
+    """Skip this retry attempt without sleeping; proceed to the next one."""
+
+    DEFAULT = "default"
+    """Fall through to the built-in default delay logic."""
+
+
+@dataclass(frozen=True)
+class OnRejectionDecision:
+    """Decision returned by an `on_rejection` callback.
+
+    Construct via the class-method factories rather than directly:
+
+        OnRejectionDecision.retry()
+        OnRejectionDecision.retry_with_delay(2_000)
+        OnRejectionDecision.abort()
+        OnRejectionDecision.skip()
+        OnRejectionDecision.default()
+    """
+
+    kind: OnRejectionDecisionKind
+    delay_ms: float | None = None
+
+    @classmethod
+    def retry(cls) -> OnRejectionDecision:
+        return cls(OnRejectionDecisionKind.RETRY)
+
+    @classmethod
+    def retry_with_delay(cls, delay_ms: float) -> OnRejectionDecision:
+        return cls(OnRejectionDecisionKind.RETRY_WITH_DELAY, delay_ms=delay_ms)
+
+    @classmethod
+    def abort(cls) -> OnRejectionDecision:
+        return cls(OnRejectionDecisionKind.ABORT)
+
+    @classmethod
+    def skip(cls) -> OnRejectionDecision:
+        return cls(OnRejectionDecisionKind.SKIP)
+
+    @classmethod
+    def default(cls) -> OnRejectionDecision:
+        return cls(OnRejectionDecisionKind.DEFAULT)
+
+
+@dataclass
+class RetryContext:
+    """Context passed to an `on_rejection` callback before each retry."""
+
+    attempt: int
+    """1-based attempt number for the retry that is about to be performed."""
+
+    last_error: Exception | None = None
+    """The most recent error, if any."""
+
+    last_status: int | None = None
+    """HTTP status code from the most recent error, if it was an `HTTPResponseError`."""
+
+    elapsed_ms: float = 0.0
+    """Time elapsed since the retry loop started, in milliseconds."""
+
+
+OnRejectionCallback = Callable[[RetryContext], OnRejectionDecision]
+"""Callback invoked before each retry attempt to override default behavior."""
 
 
 @dataclass
@@ -28,6 +106,25 @@ class RetryOptions:
 
     retryable_statuses: list[int] = field(default_factory=lambda: [429, 500, 502, 503, 504])
     """HTTP status codes that should trigger a retry."""
+
+    max_interval_ms: float | None = None
+    """Optional cap on the per-retry delay (after exponential backoff + jitter).
+
+    When set, the computed delay is clamped to `min(delay, max_interval_ms)`.
+    """
+
+    fast_first: bool = False
+    """When True, the first retry fires immediately with zero delay.
+
+    Subsequent retries use the normal exponential backoff formula.
+    """
+
+    on_rejection: OnRejectionCallback | None = None
+    """Optional callback consulted before each retry attempt.
+
+    Receives a `RetryContext` and returns an `OnRejectionDecision` that can
+    override the default delay, skip the attempt, or abort retrying entirely.
+    """
 
 
 @dataclass
