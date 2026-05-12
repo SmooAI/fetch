@@ -1,5 +1,12 @@
 # @smooai/fetch
 
+## 3.3.9
+
+### Patch Changes
+
+- 3607d13: SMOODEV-968: .NET — add sliding-window rate limiter to `SmooFetchBuilder.WithRateLimit(maxRequests, window, onRejected?)`. Built on `System.Threading.RateLimiting.SlidingWindowRateLimiter` so state is shared across every call on the constructed `SmooFetch`, matching the Rust / Go ports. Requests acquire a permit before dispatch and the optional `OnRejected` callback fires for every would-be rejection for observability. Closes the parity gap left open by SMOODEV-946.
+- 23e86e9: SMOODEV-969: Python — share the sliding-window rate-limiter state across `fetch()` calls made through a single `FetchBuilder`. Previously `_client.fetch()` reconstructed the limiter per call, defeating the cross-call rate limit. The builder now lazily constructs one `SlidingWindowRateLimiter`, hands the same instance to every `fetch()` it dispatches, and rebuilds it when the caller changes options via `with_rate_limit`. A new `SlidingWindowRateLimiter.acquire_wait()` method blocks until a slot is free (mirroring the Rust port's `acquire` loop) so successive builder-mediated calls naturally queue instead of raising `RateLimitError`. The low-level `fetch()` entrypoint retains its raise-on-full `acquire()` semantics for back-compat with `rate_limit_retry` plumbing.
+
 ## 3.3.8
 
 ### Patch Changes
