@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from smooai_fetch._client import fetch as _fetch
 from smooai_fetch._defaults import DEFAULT_RETRY_OPTIONS
+from smooai_fetch._rate_limit import SlidingWindowRateLimiter
 from smooai_fetch._response import FetchResponse
 from smooai_fetch._types import (
     AuthTokenProvider,
@@ -57,6 +58,13 @@ class FetchBuilder:
         self._hooks: LifecycleHooks = LifecycleHooks()
         self._auth_token_provider: AuthTokenProvider | None = None
         self._auth_scheme: str = "Bearer"
+        # Long-lived state for the rate limiter. Hoisted onto the builder so
+        # every `fetch()` call routed through this builder shares the same
+        # sliding-window state, matching the Go / Rust ports (SMOODEV-969).
+        # Lazily constructed the first time the builder fires a request and
+        # rebuilt if the caller swaps the options.
+        self._rate_limit_state: SlidingWindowRateLimiter | None = None
+        self._rate_limit_state_options: RateLimitOptions | None = None
 
     def with_retry(self, options: RetryOptions | None = None) -> FetchBuilder:
         """Configure retry behavior.
@@ -85,6 +93,10 @@ class FetchBuilder:
     def with_rate_limit(self, options: RateLimitOptions) -> FetchBuilder:
         """Configure rate limiting.
 
+        The sliding-window state is shared across every `fetch()` call routed
+        through this builder, matching the Go / Rust ports. Calling
+        `with_rate_limit` again with new options resets the shared state.
+
         Args:
             options: Rate limit configuration.
 
@@ -92,7 +104,38 @@ class FetchBuilder:
             The builder instance for method chaining.
         """
         self._rate_limit = options
+        # Invalidate the cached limiter so the next fetch() rebuilds with the
+        # new options.
+        self._rate_limit_state = None
+        self._rate_limit_state_options = None
         return self
+
+    def _shared_rate_limiter(self) -> SlidingWindowRateLimiter | None:
+        """Return the builder-owned rate limiter, constructing it on first use.
+
+        Returns ``None`` when rate limiting is not configured. The instance is
+        cached on the builder so successive `fetch()` calls share the
+        sliding-window state.
+        """
+        if self._rate_limit is None:
+            self._rate_limit_state = None
+            self._rate_limit_state_options = None
+            return None
+
+        if self._rate_limit_state is None or self._rate_limit_state_options is not self._rate_limit:
+            self._rate_limit_state = SlidingWindowRateLimiter(self._rate_limit)
+            self._rate_limit_state_options = self._rate_limit
+
+        return self._rate_limit_state
+
+    def reset_rate_limit_state(self) -> None:
+        """Drop the cached sliding-window state.
+
+        Mostly useful for tests; the next `fetch()` will lazily build a fresh
+        limiter.
+        """
+        self._rate_limit_state = None
+        self._rate_limit_state_options = None
 
     def with_rate_limit_retry(self, options: RateLimitRetryOptions | None) -> FetchBuilder:
         """Configure retry behavior specifically for rate-limit rejections.
@@ -278,4 +321,6 @@ class FetchBuilder:
         if body is not None:
             opts.body = body
 
-        return await _fetch(url, opts)
+        # Pass the builder-owned rate limiter so successive fetch() calls
+        # share sliding-window state (SMOODEV-969).
+        return await _fetch(url, opts, rate_limiter=self._shared_rate_limiter())

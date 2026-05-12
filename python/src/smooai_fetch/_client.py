@@ -196,7 +196,12 @@ def _should_retry_default(error: Exception, attempt: int, retry_options: RetryOp
     return True
 
 
-async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[Any]:
+async def fetch(
+    url: str,
+    options: FetchOptions | None = None,
+    *,
+    rate_limiter: SlidingWindowRateLimiter | None = None,
+) -> FetchResponse[Any]:
     """Execute an HTTP request with retry, timeout, rate limiting, and circuit breaking.
 
     Pipeline: hooks -> timeout -> rate_limit -> circuit_breaker -> retry -> execute ->
@@ -205,6 +210,11 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
     Args:
         url: The URL to request.
         options: Configuration options for the request.
+        rate_limiter: Optional pre-built sliding-window rate limiter. When
+            supplied, this instance is used instead of constructing a fresh
+            one from ``options.container_options.rate_limit``. Allows the
+            caller (e.g. ``FetchBuilder``) to share sliding-window state
+            across multiple ``fetch()`` invocations.
 
     Returns:
         A FetchResponse containing the parsed response data.
@@ -247,10 +257,18 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
         headers: dict[str, str] = request_kwargs.setdefault("headers", {})
         headers["Authorization"] = f"{opts.auth_scheme} {token}"
 
-    # Build rate limiter
-    rate_limiter: SlidingWindowRateLimiter | None = None
-    if container_options and container_options.rate_limit:
-        rate_limiter = SlidingWindowRateLimiter(container_options.rate_limit)
+    # Build rate limiter: prefer the caller-supplied instance (so the builder
+    # can share sliding-window state across calls), falling back to a fresh
+    # per-call limiter if only `container_options.rate_limit` is provided.
+    # When the caller supplies the limiter (i.e. via FetchBuilder), we use
+    # the waiting `acquire_wait()` API so successive calls naturally queue
+    # for the next slot. When it's a fresh per-call limiter, we keep the
+    # raise-on-full `acquire()` API so existing `rate_limit_retry` plumbing
+    # remains unchanged.
+    effective_rate_limiter: SlidingWindowRateLimiter | None = rate_limiter
+    use_waiting_acquire = rate_limiter is not None
+    if effective_rate_limiter is None and container_options and container_options.rate_limit:
+        effective_rate_limiter = SlidingWindowRateLimiter(container_options.rate_limit)
 
     # Build circuit breaker
     circuit_breaker: CircuitBreaker | None = None
@@ -276,15 +294,18 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
 
         async def _gated() -> FetchResponse[Any]:
             # Rate limit check
-            if rate_limiter is not None:
-                await rate_limiter.acquire()
+            if effective_rate_limiter is not None:
+                if use_waiting_acquire:
+                    await effective_rate_limiter.acquire_wait()
+                else:
+                    await effective_rate_limiter.acquire()
             return await _do_request()
 
         # If a rate-limit-specific retry policy is configured AND a rate limiter
         # is active, run the gated call inside its own retry loop. Only
         # RateLimitError rejections drive that inner loop — everything else
         # falls through to the main retry loop below.
-        if rate_limiter is not None and rate_limit_retry is not None and rate_limit_retry.attempts > 0:
+        if effective_rate_limiter is not None and rate_limit_retry is not None and rate_limit_retry.attempts > 0:
             rl_retry_opts: RetryOptions = rate_limit_retry
 
             def _should_retry_rate_limit(error: Exception, _attempt: int) -> bool | float:
