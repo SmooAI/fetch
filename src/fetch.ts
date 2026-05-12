@@ -244,9 +244,18 @@ export const DEFAULT_RATE_LIMIT_RETRY_OPTIONS: RetryOptions = {
 };
 
 /**
- * Hook that runs before the request is made, allowing modification of the request
+ * Hook that runs before the request is made, allowing modification of the request.
+ *
+ * May return synchronously or async — the fetch pipeline awaits the result, so
+ * callers can perform asynchronous work (e.g., minting a fresh auth token).
  */
-export type PreRequestHook = (url: string, init: RequestInit) => [string, RequestInit] | void;
+export type PreRequestHook = (url: string, init: RequestInit) => [string, RequestInit] | void | Promise<[string, RequestInit] | void>;
+
+/**
+ * Provider that returns an auth token to inject as the `Authorization` header.
+ * May be sync or async. Invoked before every request.
+ */
+export type AuthTokenProvider = () => string | Promise<string>;
 
 /**
  * Hook that runs after a successful response, allowing modification of the response
@@ -557,10 +566,10 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
     });
     const logger = options.logger || contextLoggerToUse;
 
-    // Apply pre-request hook if present
+    // Apply pre-request hook if present (supports async hooks)
     let modifiedInit = init;
     if (options.hooks?.preRequest) {
-        const hookResult = options.hooks.preRequest(url.toString(), init);
+        const hookResult = await options.hooks.preRequest(url.toString(), init);
         if (hookResult) {
             modifiedInit = hookResult[1];
             url = hookResult[0];
@@ -913,6 +922,58 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
         this._requestOptions = {
             ...this._requestOptions,
             hooks,
+        };
+        return this;
+    }
+
+    /**
+     * Registers an async (or sync) auth token provider that is invoked before
+     * every request and injects an `Authorization` header.
+     *
+     * Composes cleanly with `withHooks(...)` — if a `preRequest` hook is
+     * already configured, the existing hook runs first and the
+     * `Authorization` header is appended afterwards. The provider is awaited,
+     * so callers can fetch / refresh / mint tokens lazily.
+     *
+     * @example
+     * ```typescript
+     * const fetch = new FetchBuilder()
+     *     .withAuthTokenProvider(async () => await tokenStore.getFreshToken(), 'Bearer')
+     *     .build();
+     * ```
+     *
+     * @param provider - Sync or async function returning the bare token (no scheme prefix).
+     * @param scheme - The auth scheme to prefix the token with. Defaults to "Bearer".
+     * @returns The builder instance for method chaining.
+     */
+    withAuthTokenProvider(provider: AuthTokenProvider, scheme: string = 'Bearer'): FetchBuilder<Schema> {
+        const existingHooks = this._requestOptions?.hooks;
+        const existingPreRequest = existingHooks?.preRequest;
+
+        const composedPreRequest: PreRequestHook = async (url, init) => {
+            // Run any existing pre-request hook first so it can adjust the URL/init.
+            let nextUrl = url;
+            let nextInit = init;
+            if (existingPreRequest) {
+                const prior = await existingPreRequest(url, init);
+                if (prior) {
+                    nextUrl = prior[0];
+                    nextInit = prior[1];
+                }
+            }
+
+            const token = await provider();
+            const headers = new Headers(nextInit.headers ?? {});
+            headers.set('Authorization', `${scheme} ${token}`);
+            return [nextUrl, { ...nextInit, headers }];
+        };
+
+        this._requestOptions = {
+            ...this._requestOptions,
+            hooks: {
+                ...existingHooks,
+                preRequest: composedPreRequest,
+            },
         };
         return this;
     }

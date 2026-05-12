@@ -54,6 +54,18 @@ pub enum RetryDecision {
 /// task boundaries and stored inside [`RetryOptions`] (which is `Clone`).
 pub type RetryCallback = Arc<dyn Fn(&RetryContext) -> RetryDecision + Send + Sync>;
 
+/// Future returned by an [`AuthTokenProvider`].
+pub type AuthTokenFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = String> + Send + 'static>>;
+
+/// Async provider that mints an auth token. Invoked before every request to
+/// populate the `Authorization` header. Mirrors the .NET `AuthTokenProvider`
+/// delegate.
+///
+/// The provider is wrapped in an [`Arc`] so the configured client can be
+/// cheaply cloned across task boundaries.
+pub type AuthTokenProvider = Arc<dyn Fn() -> AuthTokenFuture + Send + Sync>;
+
 /// Configuration options for retry behavior.
 #[derive(Clone)]
 pub struct RetryOptions {

@@ -88,6 +88,13 @@ OnRejectionCallback = Callable[[RetryContext], OnRejectionDecision]
 """Callback invoked before each retry attempt to override default behavior."""
 
 
+AuthTokenProvider = Callable[[], "Any"]
+"""Provider that returns an auth token. May return a `str` directly or an awaitable
+that resolves to a `str`. Invoked before every request to populate the
+`Authorization` header. Mirrors the .NET delegate of the same name.
+"""
+
+
 @dataclass
 class RetryOptions:
     """Configuration options for retry behavior."""
@@ -242,3 +249,13 @@ class FetchOptions:
 
     container_options: FetchContainerOptions | None = None
     """Container-level options (rate limit, circuit breaker)."""
+
+    auth_token_provider: AuthTokenProvider | None = None
+    """Optional sync or async provider invoked before each request to mint an auth token.
+
+    The returned token is injected into the `Authorization` header using
+    `auth_scheme` (default `"Bearer"`). Awaitable return values are awaited.
+    """
+
+    auth_scheme: str = "Bearer"
+    """Auth scheme prefix used with `auth_token_provider`. Defaults to "Bearer"."""

@@ -13,8 +13,9 @@ use crate::hooks::{
 use crate::rate_limit::SlidingWindowRateLimiter;
 use crate::response::FetchResponse;
 use crate::types::{
-    CircuitBreakerOptions, FetchContainerOptions, FetchOptions, RateLimitOptions,
-    RateLimitRetryOptions, RequestInit, RetryCallback, RetryOptions, TimeoutOptions,
+    AuthTokenProvider, CircuitBreakerOptions, FetchContainerOptions, FetchOptions,
+    RateLimitOptions, RateLimitRetryOptions, RequestInit, RetryCallback, RetryOptions,
+    TimeoutOptions,
 };
 
 /// Builder for creating configured fetch functions with retry, timeout, rate limiting,
@@ -52,6 +53,8 @@ pub struct FetchBuilder<T: DeserializeOwned + Clone + Send + 'static> {
     container_options: FetchContainerOptions,
     default_init: Option<RequestInit>,
     hooks: LifecycleHooks<T>,
+    auth_token_provider: Option<AuthTokenProvider>,
+    auth_scheme: String,
 }
 
 impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
@@ -65,6 +68,8 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             container_options: FetchContainerOptions::default(),
             default_init: None,
             hooks: LifecycleHooks::default(),
+            auth_token_provider: None,
+            auth_scheme: "Bearer".to_string(),
         }
     }
 
@@ -191,6 +196,42 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
         self
     }
 
+    /// Register an async auth-token provider that is invoked before every
+    /// request and used to populate the `Authorization` header.
+    ///
+    /// Mirrors the .NET `AuthTokenProvider` delegate and the TypeScript
+    /// `FetchBuilder.withAuthTokenProvider(...)` method.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use std::sync::Arc;
+    /// use smooai_fetch::builder::FetchBuilder;
+    /// use smooai_fetch::types::AuthTokenProvider;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize, Clone, Debug)]
+    /// struct Reply { ok: bool }
+    ///
+    /// # async fn example() {
+    /// let provider: AuthTokenProvider = Arc::new(|| {
+    ///     Box::pin(async move {
+    ///         // Imagine fetching/refreshing the token here.
+    ///         "fresh-token".to_string()
+    ///     })
+    /// });
+    ///
+    /// let _client = FetchBuilder::<Reply>::new()
+    ///     .with_auth_provider(provider, "Bearer".to_string())
+    ///     .build();
+    /// # }
+    /// ```
+    pub fn with_auth_provider(mut self, provider: AuthTokenProvider, scheme: String) -> Self {
+        self.auth_token_provider = Some(provider);
+        self.auth_scheme = scheme;
+        self
+    }
+
     /// Build the configured fetch client.
     pub fn build(self) -> FetchClient<T> {
         let rate_limiter = self
@@ -213,6 +254,8 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             rate_limit_retry: self.container_options.rate_limit_retry,
             circuit_breaker,
             hooks: Arc::new(self.hooks),
+            auth_token_provider: self.auth_token_provider,
+            auth_scheme: self.auth_scheme,
         }
     }
 }
@@ -232,6 +275,8 @@ pub struct FetchClient<T: DeserializeOwned + Clone + Send + 'static> {
     rate_limit_retry: Option<RateLimitRetryOptions>,
     circuit_breaker: Option<CircuitBreaker>,
     hooks: Arc<LifecycleHooks<T>>,
+    auth_token_provider: Option<AuthTokenProvider>,
+    auth_scheme: String,
 }
 
 impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
@@ -242,7 +287,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
         init: RequestInit,
     ) -> Result<FetchResponse<T>, FetchError> {
         // Merge default init with per-request init
-        let merged_init = self.merge_init(init);
+        let merged_init = self.apply_auth(self.merge_init(init)).await;
 
         crate::client::fetch::<T>(
             url,
@@ -263,7 +308,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
         init: RequestInit,
         options: FetchOptions,
     ) -> Result<FetchResponse<T>, FetchError> {
-        let merged_init = self.merge_init(init);
+        let merged_init = self.apply_auth(self.merge_init(init)).await;
 
         crate::client::fetch::<T>(
             url,
@@ -275,6 +320,19 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
             Some(self.hooks.as_ref()),
         )
         .await
+    }
+
+    /// Invoke the configured auth-token provider (if any) and inject the
+    /// resulting `Authorization` header into the request init.
+    async fn apply_auth(&self, mut init: RequestInit) -> RequestInit {
+        if let Some(ref provider) = self.auth_token_provider {
+            let token = provider().await;
+            init.headers.insert(
+                "Authorization".to_string(),
+                format!("{} {}", self.auth_scheme, token),
+            );
+        }
+        init
     }
 
     /// Get a reference to the circuit breaker, if configured.

@@ -1218,4 +1218,76 @@ describe('Test fetch', () => {
             expect(mockFetch.mock.calls[0][0].toString()).toContain('timestamp=1234567890');
         });
     });
+
+    describe('withAuthTokenProvider', () => {
+        test('injects Authorization header using async provider with default Bearer scheme', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, { ok: true }));
+
+            let mintCount = 0;
+            const provider = async () => {
+                mintCount++;
+                return 'tok-abc';
+            };
+
+            const fetch = new FetchBuilder().withAuthTokenProvider(provider).build();
+
+            const r = await fetch(URL_TO_USE);
+            expect(r.ok).toBe(true);
+
+            const headers = new Headers(mockFetch.mock.calls[0][1]?.headers);
+            expect(headers.get('Authorization')).toBe('Bearer tok-abc');
+            expect(mintCount).toBe(1);
+        });
+
+        test('honors a custom scheme', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, { ok: true }));
+
+            const fetch = new FetchBuilder().withAuthTokenProvider(() => 'static-tok', 'Token').build();
+
+            await fetch(URL_TO_USE);
+            const headers = new Headers(mockFetch.mock.calls[0][1]?.headers);
+            expect(headers.get('Authorization')).toBe('Token static-tok');
+        });
+
+        test('invokes the provider before every request (fresh token per call)', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, { ok: true }));
+
+            const tokens = ['t1', 't2', 't3'];
+            let idx = 0;
+            const provider = () => tokens[idx++];
+
+            const fetch = new FetchBuilder().withAuthTokenProvider(provider).build();
+
+            await fetch(URL_TO_USE);
+            await fetch(URL_TO_USE);
+            await fetch(URL_TO_USE);
+
+            expect(new Headers(mockFetch.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer t1');
+            expect(new Headers(mockFetch.mock.calls[1][1]?.headers).get('Authorization')).toBe('Bearer t2');
+            expect(new Headers(mockFetch.mock.calls[2][1]?.headers).get('Authorization')).toBe('Bearer t3');
+        });
+
+        test('composes with an existing preRequest hook', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200, { ok: true }));
+
+            const fetch = new FetchBuilder()
+                .withHooks({
+                    preRequest: (url, init) => {
+                        init.headers = { ...(init.headers as Record<string, string>), 'X-Hook': 'fired' };
+                        return [url, init];
+                    },
+                })
+                .withAuthTokenProvider(async () => 'composed-tok')
+                .build();
+
+            await fetch(URL_TO_USE);
+            const headers = new Headers(mockFetch.mock.calls[0][1]?.headers);
+            expect(headers.get('X-Hook')).toBe('fired');
+            expect(headers.get('Authorization')).toBe('Bearer composed-tok');
+        });
+    });
 });
