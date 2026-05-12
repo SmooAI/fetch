@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"context"
 	"net/http"
 	"time"
 )
@@ -113,6 +114,12 @@ type CircuitBreakerCounts struct {
 	ConsecutiveSuccesses uint32
 	ConsecutiveFailures  uint32
 }
+
+// AuthTokenProvider is invoked before every request to mint an auth token that
+// is injected into the `Authorization` header. The provider receives the
+// request context so callers can hook into cancellation/timeouts when fetching
+// or refreshing tokens. Mirrors the .NET `AuthTokenProvider` delegate.
+type AuthTokenProvider func(ctx context.Context) (string, error)
 
 // LifecycleHooks provides hooks into the request/response lifecycle.
 type LifecycleHooks struct {

@@ -10,6 +10,7 @@ from smooai_fetch._client import fetch as _fetch
 from smooai_fetch._defaults import DEFAULT_RETRY_OPTIONS
 from smooai_fetch._response import FetchResponse
 from smooai_fetch._types import (
+    AuthTokenProvider,
     CircuitBreakerOptions,
     FetchContainerOptions,
     FetchOptions,
@@ -54,6 +55,8 @@ class FetchBuilder:
         self._schema: type[BaseModel] | None = None
         self._headers: dict[str, str] = {}
         self._hooks: LifecycleHooks = LifecycleHooks()
+        self._auth_token_provider: AuthTokenProvider | None = None
+        self._auth_scheme: str = "Bearer"
 
     def with_retry(self, options: RetryOptions | None = None) -> FetchBuilder:
         """Configure retry behavior.
@@ -159,6 +162,30 @@ class FetchBuilder:
         self._headers["Authorization"] = f"{scheme} {token}"
         return self
 
+    def with_auth_provider(
+        self,
+        provider: AuthTokenProvider,
+        scheme: str = "Bearer",
+    ) -> FetchBuilder:
+        """Register a sync or async auth token provider.
+
+        The provider is invoked before every request and its result is injected
+        as the `Authorization` header. If the provider returns an awaitable,
+        it is awaited inline. Mirrors the .NET `AuthTokenProvider` delegate.
+
+        Args:
+            provider: Callable returning the bare token (no scheme prefix).
+                Sync `() -> str` or async `() -> Awaitable[str]` are both
+                accepted.
+            scheme: Auth scheme prefix. Defaults to "Bearer".
+
+        Returns:
+            The builder instance for method chaining.
+        """
+        self._auth_token_provider = provider
+        self._auth_scheme = scheme
+        return self
+
     def with_pre_request_hook(self, hook: PreRequestHook) -> FetchBuilder:
         """Set a pre-request hook.
 
@@ -216,6 +243,8 @@ class FetchBuilder:
             schema=self._schema,
             hooks=self._hooks,
             container_options=container_options,
+            auth_token_provider=self._auth_token_provider,
+            auth_scheme=self._auth_scheme,
         )
 
     async def fetch(

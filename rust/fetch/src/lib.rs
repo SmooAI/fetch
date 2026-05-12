@@ -63,8 +63,8 @@ pub use error::FetchError;
 pub use rate_limit::SlidingWindowRateLimiter;
 pub use response::FetchResponse;
 pub use types::{
-    FetchContainerOptions, FetchOptions, Method, RateLimitRetryOptions, RequestInit, RetryCallback,
-    RetryContext, RetryDecision, RetryOptions,
+    AuthTokenFuture, AuthTokenProvider, FetchContainerOptions, FetchOptions, Method,
+    RateLimitRetryOptions, RequestInit, RetryCallback, RetryContext, RetryDecision, RetryOptions,
 };
 
 /// Convenience function: perform a single fetch with default options.

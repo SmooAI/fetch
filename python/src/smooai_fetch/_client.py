@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any, TypeVar
 
@@ -233,6 +234,18 @@ async def fetch(url: str, options: FetchOptions | None = None) -> FetchResponse[
         if hook_result is not None:
             current_url, request_kwargs = hook_result
             request_kwargs["url"] = current_url
+
+    # Apply auth-token provider (after pre-request hook so the hook can still
+    # adjust headers / URL first). Supports both sync providers and async
+    # providers; the awaitable is awaited inline so we always get the resolved
+    # token before the request fires.
+    if opts.auth_token_provider is not None:
+        raw_token = opts.auth_token_provider()
+        if inspect.isawaitable(raw_token):
+            raw_token = await raw_token
+        token: str = str(raw_token)
+        headers: dict[str, str] = request_kwargs.setdefault("headers", {})
+        headers["Authorization"] = f"{opts.auth_scheme} {token}"
 
     # Build rate limiter
     rate_limiter: SlidingWindowRateLimiter | None = None

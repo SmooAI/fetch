@@ -22,6 +22,8 @@ type Client struct {
 	rateLimitRetry *RateLimitRetryOptions
 	circuitBreaker *CircuitBreaker
 	hooks          *LifecycleHooks
+	authProvider   AuthTokenProvider
+	authScheme     string
 }
 
 // NewClient creates a new Client with default settings (retry + timeout).
@@ -184,6 +186,26 @@ func executeHTTPRequest[T any](
 			requestURL = newURL
 			req = newReq
 		}
+	}
+
+	// Apply auth-token provider (after the pre-request hook so the hook can
+	// adjust the URL/init first; the resulting Authorization header overrides
+	// any value the hook may have set).
+	if client.authProvider != nil {
+		token, err := client.authProvider(ctx)
+		if err != nil {
+			if hooks != nil && hooks.PostResponseError != nil {
+				if replacementErr := hooks.PostResponseError(requestURL, req, err, nil); replacementErr != nil {
+					return nil, replacementErr
+				}
+			}
+			return nil, fmt.Errorf("auth token provider failed: %w", err)
+		}
+		scheme := client.authScheme
+		if scheme == "" {
+			scheme = "Bearer"
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("%s %s", scheme, token))
 	}
 
 	// Execute the HTTP request

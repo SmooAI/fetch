@@ -16,6 +16,8 @@ type ClientBuilder struct {
 	circuitBreakerOpts *CircuitBreakerOptions
 	circuitBreakerName string
 	hooks              *LifecycleHooks
+	authProvider       AuthTokenProvider
+	authScheme         string
 }
 
 // NewClientBuilder creates a new ClientBuilder with default retry and timeout options.
@@ -86,6 +88,22 @@ func (b *ClientBuilder) WithHooks(hooks *LifecycleHooks) *ClientBuilder {
 	return b
 }
 
+// WithAuthTokenProvider registers a sync-or-async auth token provider that is
+// invoked before every request and used to populate the `Authorization`
+// header. The provider receives the request context, so it can short-circuit
+// on cancellation/timeouts. Mirrors the .NET `AuthTokenProvider` delegate and
+// the TypeScript `FetchBuilder.withAuthTokenProvider(...)` method.
+//
+// Pass an empty string for scheme to default to "Bearer".
+func (b *ClientBuilder) WithAuthTokenProvider(provider AuthTokenProvider, scheme string) *ClientBuilder {
+	b.authProvider = provider
+	if scheme == "" {
+		scheme = "Bearer"
+	}
+	b.authScheme = scheme
+	return b
+}
+
 // WithNoRetry disables retries.
 func (b *ClientBuilder) WithNoRetry() *ClientBuilder {
 	b.retryOpts = nil
@@ -126,6 +144,11 @@ func (b *ClientBuilder) Build() *Client {
 		timeout:        b.timeoutOpts,
 		rateLimitRetry: b.rateLimitRetryOpts,
 		hooks:          b.hooks,
+		authProvider:   b.authProvider,
+		authScheme:     b.authScheme,
+	}
+	if c.authScheme == "" {
+		c.authScheme = "Bearer"
 	}
 
 	if c.httpClient == nil {
