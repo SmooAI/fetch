@@ -1,5 +1,13 @@
 # @smooai/fetch
 
+## 3.3.8
+
+### Patch Changes
+
+- 62e0c22: SMOODEV-946: .NET port — close parity sweep. Adds `SmooFetchBuilder` fluent API, Polly-based circuit breaker, lifecycle hooks (`PreRequest` / `PostRequestOk` / `PostRequestErr`), `OnRejection` retry callback with `OnRejectionDecision` (`Retry` / `RetryWithDelay` / `Abort` / `Skip` / `Default`), and `FastFirst` on `RetryPolicy`. Existing `SmooFetchOptions` + `SmooFetch.Create` factory remain for backwards compatibility. Rate limiter is parked as a follow-up.
+- 148364b: SMOODEV-948: Async auth-token provider across TS, Python, Rust, Go. Adds a first-class hook that's invoked before every request to mint / refresh an auth token (sync or async), with the resulting `Authorization` header injected using a configurable scheme (default `Bearer`). Mirrors the existing .NET `AuthTokenProvider` delegate.
+- ab2588b: SMOODEV-950: Circuit breaker — rate-based detection + `on_state_change` callback in Rust/Python/Go. Adds `failure_rate_threshold` + `sliding_window_size` for rate-based tripping (Python, Rust) and an `on_state_change` callback that fires on every state transition (Python, Rust, Go-builder). Mirrors the TS `failureRateThreshold` + `onStateChange` surface.
+
 ## 3.3.7
 
 ### Patch Changes
