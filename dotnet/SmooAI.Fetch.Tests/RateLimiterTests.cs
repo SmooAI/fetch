@@ -152,8 +152,14 @@ public class RateLimiterTests : IAsyncLifetime
         await fetch.GetAsync<PingResponse>("/ping");
         sw.Stop();
 
+        // Tolerance is wide because: (a) the first 3 calls consume part of the
+        // 800ms window before the 4th is issued, so the actual wait is the
+        // remaining window slice (~600ms in dev, less on slower CI), and
+        // (b) System.Threading.RateLimiting releases at segment boundaries.
+        // The assertion only needs to prove the limiter state is *shared* —
+        // any non-trivial wait does that. Use 300ms as a robust floor.
         Assert.True(
-            sw.Elapsed >= TimeSpan.FromMilliseconds(600),
-            $"Expected 4th call to wait roughly one window (~800ms), got {sw.ElapsedMilliseconds}ms");
+            sw.Elapsed >= TimeSpan.FromMilliseconds(300),
+            $"Expected 4th call to wait a non-trivial fraction of the window, got {sw.ElapsedMilliseconds}ms");
     }
 }
