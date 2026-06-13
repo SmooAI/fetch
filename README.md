@@ -1,59 +1,64 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+<p align="center">
+  <a href="https://smoo.ai"><img src="https://smoo.ai/images/logo/logo.svg" alt="Smoo AI" width="220" /></a>
+</p>
 
-<a name="readme-top"></a>
+<h1 align="center">@smooai/fetch</h1>
 
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Don't forget to give the project a star!
-*** Thanks again! Now go create something AMAZING! :D
--->
+<p align="center">
+  <strong>A resilient, type-safe HTTP client that handles the chaos of real-world APIs for you.</strong>
+</p>
 
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
+<p align="center">
+  <a href="https://www.npmjs.com/package/@smooai/fetch"><img src="https://img.shields.io/npm/v/@smooai/fetch?style=flat-square&color=00A6A6&label=npm" alt="npm"></a>
+  <img src="https://img.shields.io/badge/Smoo_AI-platform-00A6A6?style=flat-square" alt="Smoo AI">
+  <img src="https://img.shields.io/badge/license-MIT-F49F0A?style=flat-square" alt="license">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go">
+</p>
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://smoo.ai">
-    <img src="images/logo.png" alt="SmooAI Logo" />
-  </a>
-</div>
+<p align="center">
+  <a href="#-features">Features</a> ·
+  <a href="#-install">Install</a> ·
+  <a href="#-usage">Usage</a> ·
+  <a href="#-examples">Examples</a> ·
+  <a href="#-part-of-smoo-ai">Platform</a>
+</p>
 
-<!-- ABOUT THE PROJECT -->
+---
 
-## About Smoo AI
+> Stop writing the same retry logic over and over. `@smooai/fetch` is a drop-in `fetch` that survives the reality of network failures — exponential backoff, timeouts, rate-limit awareness, circuit breaking, and schema-validated responses — so you can focus on features instead of failure handling. Same API in Node.js and the browser, with native ports in TypeScript, Python, Rust, and Go.
 
-**[Smoo AI](https://smoo.ai)** is an AI platform that helps businesses multiply their customer, employee, and developer experience — conversational AI for support and sales, paired with the production-grade developer tooling we use to build it.
+Traditional `fetch` gives you the request, but leaves you to handle the reality of flaky APIs, slow endpoints, and rate limits. `@smooai/fetch` handles them by default.
 
-This library is part of a small family of open-source packages we maintain to keep our own stack honest: contextual logging, typed HTTP, file storage, and agent orchestration. Use them in your stack, or take them as a reference for how we build.
+## ✨ Features
 
-- 🌐 [smoo.ai](https://smoo.ai) — the product
-- 📦 [smoo.ai/open-source](https://smoo.ai/open-source) — every open-source package we ship
-- 🐙 [github.com/SmooAI](https://github.com/SmooAI) — the source
+**For unreliable APIs:**
 
-## About @smooai/fetch
+- 🔄 **Smart retries** — exponential backoff with jitter to prevent thundering herds
+- ⏱️ **Automatic timeouts** — never hang indefinitely on slow endpoints
+- 🚦 **Rate-limit respect** — reads `Retry-After` headers and backs off intelligently
+- 🔌 **Circuit breaking** — stop hammering services that are clearly down
+- ⚡ **Request deduplication** — prevent duplicate in-flight requests
 
-**Stop writing the same retry logic over and over** - A resilient HTTP client that handles the chaos of real-world APIs, so you can focus on building features instead of handling failures.
+**For developer experience:**
 
-![NPM Version](https://img.shields.io/npm/v/%40smooai%2Ffetch?style=for-the-badge)
-![NPM Downloads](https://img.shields.io/npm/dw/%40smooai%2Ffetch?style=for-the-badge)
-![NPM Last Update](https://img.shields.io/npm/last-update/%40smooai%2Ffetch?style=for-the-badge)
+- 🎯 **Type-safe responses** — schema validation with any Standard Schema validator
+- 🔗 **Request lifecycle** — pre/post hooks for authentication and logging
+- 📊 **Built-in telemetry** — track success rates and response times
+- 🌐 **Universal** — the same API for Node.js and browsers
+- 🪶 **Zero dependencies** — just the fetch API and smart patterns
 
-![GitHub License](https://img.shields.io/github/license/SmooAI/fetch?style=for-the-badge)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SmooAI/fetch/release.yml?style=for-the-badge)
-![GitHub Repo stars](https://img.shields.io/github/stars/SmooAI/fetch?style=for-the-badge)
+## 📦 Install
 
-### Multi-Language Support
+```sh
+pnpm add @smooai/fetch
+```
 
-@smooai/fetch is available as native implementations in **TypeScript**, **Python**, **Rust**, and **Go** — each built with idiomatic patterns for its ecosystem.
+### Multi-language support
+
+`@smooai/fetch` ships native implementations in TypeScript, Python, Rust, and Go — each built with idiomatic patterns for its ecosystem.
 
 | Language   | Package                                                        | Install                                   |
 | ---------- | -------------------------------------------------------------- | ----------------------------------------- |
@@ -62,41 +67,11 @@ This library is part of a small family of open-source packages we maintain to ke
 | Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
 | Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
 
-Language-specific source code lives in the [`python/`](./python/), [`rust/`](./rust/), and [`go/`](./go/) directories.
+Language-specific source lives in the [`python/`](./python/), [`rust/`](./rust/), and [`go/`](./go/) directories.
 
-### Why @smooai/fetch?
+## 🚀 Usage
 
-Ever had your app crash because an API was down for 2 seconds? Or watched your users stare at loading spinners because a third-party service hit its rate limit? Traditional fetch gives you the request, but leaves you to handle the reality of network failures.
-
-**@smooai/fetch automatically handles:**
-
-**For Unreliable APIs:**
-
-- 🔄 **Smart retries** - Exponential backoff with jitter to prevent thundering herds
-- ⏱️ **Automatic timeouts** - Never hang indefinitely on slow endpoints
-- 🚦 **Rate limit respect** - Reads Retry-After headers and backs off intelligently
-- 🔌 **Circuit breaking** - Stop hammering services that are clearly down
-- ⚡ **Request deduplication** - Prevent duplicate in-flight requests
-
-**For Developer Experience:**
-
-- 🎯 **Type-safe responses** - Schema validation with any Standard Schema validator
-- 🔗 **Request lifecycle** - Pre/post hooks for authentication and logging
-- 📊 **Built-in telemetry** - Track success rates and response times
-- 🌐 **Universal** - Same API for Node.js and browsers
-- 🪶 **Zero dependencies** - Just the fetch API and smart patterns
-
-### Install
-
-```sh
-pnpm add @smooai/fetch
-```
-
-## The Power of Resilient Fetching
-
-### Never Let a Hiccup Break Your App
-
-Watch how @smooai/fetch handles common failure scenarios:
+It's just `fetch`, but resilient.
 
 ```typescript
 import fetch from '@smooai/fetch';
@@ -105,52 +80,39 @@ import fetch from '@smooai/fetch';
 const response = await fetch('https://flaky-api.com/data');
 
 // Behind the scenes:
-// Attempt 1: 500 error - waits 500ms
-// Attempt 2: 503 error - waits 1000ms
-// Attempt 3: 200 success! ✅
+// Attempt 1: 500 error — waits 500ms
+// Attempt 2: 503 error — waits 1000ms
+// Attempt 3: 200 success ✅
 ```
 
-Your users never know the API had issues - the request just works.
-
-### Respect Rate Limits Automatically
-
-No more manual retry-after parsing:
+### Respect rate limits automatically
 
 ```typescript
 const response = await fetch('https://api.github.com/user/repos');
 
 // If GitHub says "slow down":
-// - Sees 429 status + Retry-After: 60
+// - Sees 429 + Retry-After: 60
 // - Automatically waits 60 seconds
 // - Retries and succeeds
-// - Your code continues normally
 ```
 
-### Production-Ready Examples
-
-#### Node.js Usage
+### Node.js and browser
 
 ```typescript
+// Node.js
 import fetch from '@smooai/fetch';
-
-// It's just fetch, but resilient
 const response = await fetch('https://api.example.com/users');
 const users = await response.json();
-```
 
-#### Browser Usage
-
-```typescript
+// Browser — same API, different entry point
 import fetch from '@smooai/fetch/browser';
-
-// Same API, different entry point
 const response = await fetch('/api/checkout', {
     method: 'POST',
     body: { items: cart },
 });
 ```
 
-#### Schema Validation That Makes Sense
+### Schema validation that makes sense
 
 ```typescript
 import { z } from 'zod';
@@ -160,7 +122,6 @@ const UserSchema = z.object({
     email: z.string().email(),
 });
 
-// Your API returns garbage? You'll know immediately
 const response = await fetch('https://api.example.com/user', {
     options: { schema: UserSchema },
 });
@@ -169,12 +130,11 @@ const response = await fetch('https://api.example.com/user', {
 // No more runtime surprises in production
 ```
 
-#### Circuit Breaking for Critical Services
+### Circuit breaking for critical services
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 
-// Stop hammering services that are clearly struggling
 const criticalAPI = new FetchBuilder()
     .withCircuitBreaker({
         failureThreshold: 5, // 5 failures
@@ -183,24 +143,29 @@ const criticalAPI = new FetchBuilder()
     })
     .build();
 
-// If the service is down, this fails fast instead of waiting
 try {
     await criticalAPI('https://payment-processor.com/charge');
 } catch (error) {
-    // Circuit is open - service is down
-    // Show fallback UI immediately
+    // Circuit is open — service is down. Show fallback UI immediately.
 }
 ```
 
-## Real-World Scenarios
+## 📖 Smart defaults
 
-### Handle Authentication Globally
+Out of the box, `@smooai/fetch` is configured for the real world:
+
+**Retry strategy** — 2 automatic retries, exponential backoff (500ms → 1s → 2s), jitter to prevent thundering herds, and retries only on network errors or 5xx responses.
+
+**Timeout protection** — 10-second default timeout, configurable per request, so requests never hang indefinitely.
+
+**Rate-limit handling** — respects `Retry-After` headers and backs off automatically on 429 responses.
+
+### Handle authentication globally
 
 ```typescript
 const api = new FetchBuilder()
     .withHooks({
         preRequest: (url, init) => {
-            // Add auth header to every request
             init.headers = {
                 ...init.headers,
                 Authorization: `Bearer ${getToken()}`,
@@ -209,8 +174,7 @@ const api = new FetchBuilder()
         },
         postResponseError: (url, init, error) => {
             if (error.response?.status === 401) {
-                // Token expired - refresh and retry
-                refreshToken();
+                refreshToken(); // Token expired — refresh and retry
             }
             return error;
         },
@@ -218,13 +182,12 @@ const api = new FetchBuilder()
     .build();
 ```
 
-### Track Performance Automatically
+### Track performance automatically
 
 ```typescript
 const api = new FetchBuilder()
     .withHooks({
         postResponseSuccess: (url, init, response) => {
-            // Send metrics to your monitoring service
             metrics.record({
                 endpoint: url.pathname,
                 duration: response.headers.get('x-response-time'),
@@ -236,112 +199,53 @@ const api = new FetchBuilder()
     .build();
 ```
 
-### Graceful Degradation
+### Graceful degradation
 
 ```typescript
-// Primary API with circuit breaker
 const primaryAPI = new FetchBuilder().withCircuitBreaker({ failureThreshold: 3 }).build();
-
-// Fallback API for resilience
-const fallbackAPI = new FetchBuilder()
-    .withTimeout(2000) // Faster timeout for fallback
-    .build();
+const fallbackAPI = new FetchBuilder().withTimeout(2000).build();
 
 async function getWeather(city: string) {
     try {
         return await primaryAPI(`https://api1.weather.com/${city}`);
     } catch (error) {
-        // Seamlessly fall back to secondary service
         console.warn('Primary weather API failed, using fallback');
         return await fallbackAPI(`https://api2.weather.com/${city}`);
     }
 }
 ```
 
-## The Smart Defaults
+## 🔗 Pairs with @smooai/logger
 
-Out of the box, @smooai/fetch is configured for the real world:
+`@smooai/fetch` works with [@smooai/logger](https://github.com/SmooAI/logger) for complete observability across distributed systems.
 
-**Retry Strategy:**
-
-- 2 automatic retries on failure
-- Exponential backoff: 500ms → 1s → 2s
-- Jitter to prevent thundering herds
-- Only retries on network errors or 5xx responses
-
-**Timeout Protection:**
-
-- 10-second default timeout
-- Prevents indefinite hangs
-- Configurable per request
-
-**Rate Limit Handling:**
-
-- Respects Retry-After headers
-- Automatic backoff on 429 responses
-- Prevents API ban hammers
-
-## Seamless Integration with @smooai/logger
-
-@smooai/fetch works perfectly with [@smooai/logger](https://github.com/SmooAI/logger) to provide complete observability across your distributed systems:
-
-### Automatic Correlation ID Propagation
+### Automatic correlation ID propagation
 
 ```typescript
-import fetch from '@smooai/fetch';
+import fetch, { FetchBuilder } from '@smooai/fetch';
 import { AwsServerLogger } from '@smooai/logger/AwsServerLogger';
 
 const logger = new AwsServerLogger({ name: 'APIClient' });
 
-// Correlation IDs flow automatically through your requests
 const api = new FetchBuilder()
-    .withLogger(logger) // That's it!
+    .withLogger(logger) // That's it
     .build();
 
 // In Service A
 logger.info('Starting user flow'); // Correlation ID: abc-123
 const user = await api('/users/123'); // Correlation ID sent as header
 
-// In Service B (receiving the request)
-// The correlation ID is automatically extracted and logs are linked!
+// In Service B, the correlation ID is automatically extracted and logs are linked.
 ```
 
-### Track Every Request with Context
+### Debug production issues faster
 
-```typescript
-const api = new FetchBuilder()
-    .withLogger(logger)
-    .withHooks({
-        postResponseSuccess: (url, init, response) => {
-            // Logger automatically captures:
-            // - Correlation ID
-            // - Request method & URL
-            // - Response status
-            // - Duration
-            // - Any errors with full context
-            logger.info('API request completed', {
-                endpoint: url.pathname,
-                status: response.status,
-            });
-            return response;
-        },
-    })
-    .build();
-```
-
-### Debug Production Issues Faster
-
-When something goes wrong, you'll have the complete story:
+When something goes wrong, you have the complete story — initial request, each retry attempt, circuit-breaker state changes, and the final error with a full stack trace:
 
 ```typescript
 try {
     const response = await api('/flaky-endpoint');
 } catch (error) {
-    // Logger captures the entire request lifecycle:
-    // - Initial request with headers
-    // - Each retry attempt
-    // - Circuit breaker state changes
-    // - Final error with full stack trace
     logger.error('Request failed after retries', error);
 }
 
@@ -349,31 +253,25 @@ try {
 // {
 //   "correlationId": "abc-123",
 //   "message": "Request failed after retries",
-//   "error": {
-//     "attempts": 3,
-//     "lastError": "TimeoutError",
-//     "circuitState": "open"
-//   },
-//   "callerContext": {
-//     "stack": ["/src/services/UserService.ts:42:16"]
-//   }
+//   "error": { "attempts": 3, "lastError": "TimeoutError", "circuitState": "open" },
+//   "callerContext": { "stack": ["/src/services/UserService.ts:42:16"] }
 // }
 ```
 
-### Examples
+## 📚 Examples
 
-- [Basic Usage](#basic-usage)
-- [FetchBuilder Pattern](#fetchbuilder-pattern)
-- [Retry Example](#retry-example)
-- [Timeout Example](#timeout-example)
-- [Rate Limit Example](#rate-limit-example)
-- [Circuit Breaker Example](#circuit-breaker-example)
-- [Schema Validation Example](#schema-validation-example)
-- [Predefined Authentication Example](#predefined-authentication-example)
-- [Custom Logger Example](#custom-logger-example)
-- [Error Handling](#error-handling)
+- [Basic usage](#basic-usage)
+- [FetchBuilder pattern](#fetchbuilder-pattern)
+- [Retry](#retry-example)
+- [Timeout](#timeout-example)
+- [Rate limit](#rate-limit-example)
+- [Schema validation](#schema-validation-example)
+- [Lifecycle hooks](#lifecycle-hooks-example)
+- [Predefined authentication](#predefined-authentication-example)
+- [Custom logger](#custom-logger-example)
+- [Error handling](#error-handling)
 
-#### Basic Usage <a name="basic-usage"></a>
+#### Basic usage <a name="basic-usage"></a>
 
 ```typescript
 import fetch from '@smooai/fetch';
@@ -401,9 +299,9 @@ const response = await fetch('https://api.example.com/data', {
 });
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### FetchBuilder Pattern
+#### FetchBuilder pattern <a name="fetchbuilder-pattern"></a>
 
 The `FetchBuilder` provides a fluent interface for configuring fetch instances:
 
@@ -411,14 +309,12 @@ The `FetchBuilder` provides a fluent interface for configuring fetch instances:
 import { FetchBuilder, RetryMode } from '@smooai/fetch';
 import { z } from 'zod';
 
-// Define a response schema
 const UserSchema = z.object({
     id: z.string(),
     name: z.string(),
     email: z.string().email(),
 });
 
-// Create a configured fetch instance
 const fetch = new FetchBuilder(UserSchema)
     .withTimeout(5000) // 5 second timeout
     .withRetry({
@@ -429,14 +325,13 @@ const fetch = new FetchBuilder(UserSchema)
     .withRateLimit(100, 60000) // 100 requests per minute
     .build();
 
-// Use the configured fetch instance
 const response = await fetch('https://api.example.com/users/123');
-// response.data is now typed as { id: string; name: string; email: string }
+// response.data is typed as { id: string; name: string; email: string }
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Retry Example <a name="retry-example"></a>
+#### Retry <a name="retry-example"></a>
 
 ```typescript
 import { FetchBuilder, RetryMode } from '@smooai/fetch';
@@ -451,7 +346,6 @@ const response = await fetch('https://api.example.com/data', {
             factor: 2,
             jitterAdjustment: 0.5,
             onRejection: (error) => {
-                // Custom retry logic
                 if (error instanceof HTTPResponseError) {
                     return error.response.status >= 500;
                 }
@@ -479,9 +373,9 @@ const fetch = new FetchBuilder()
     .build();
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Timeout Example <a name="timeout-example"></a>
+#### Timeout <a name="timeout-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
@@ -509,9 +403,9 @@ try {
 }
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Rate Limit Example <a name="rate-limit-example"></a>
+#### Rate limit <a name="rate-limit-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
@@ -547,15 +441,14 @@ const fetch = new FetchBuilder()
     .build();
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Schema Validation Example
+#### Schema validation <a name="schema-validation-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 import { z } from 'zod';
 
-// Define response schema
 const UserSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -584,31 +477,27 @@ try {
 }
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Lifecycle Hooks Example
+#### Lifecycle hooks <a name="lifecycle-hooks-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 import { z } from 'zod';
 
-// Define response schema
 const UserSchema = z.object({
     id: z.string(),
     name: z.string(),
     email: z.string().email(),
 });
 
-// Create a fetch instance with hooks
 const fetch = new FetchBuilder(UserSchema)
     .withHooks({
         // Pre-request hook can modify both URL and request configuration
         preRequest: (url, init) => {
-            // Add timestamp to URL
             const modifiedUrl = new URL(url.toString());
             modifiedUrl.searchParams.set('timestamp', Date.now().toString());
 
-            // Add custom headers
             init.headers = {
                 ...init.headers,
                 'X-Custom-Header': 'value',
@@ -621,7 +510,6 @@ const fetch = new FetchBuilder(UserSchema)
         // Note: url and init are readonly in this hook
         postResponseSuccess: (url, init, response) => {
             if (response.isJson && response.data) {
-                // Add request metadata to response
                 response.data = {
                     ...response.data,
                     _metadata: {
@@ -638,7 +526,6 @@ const fetch = new FetchBuilder(UserSchema)
         // Note: url and init are readonly in this hook
         postResponseError: (url, init, error, response) => {
             if (error instanceof HTTPResponseError) {
-                // Create a more detailed error message
                 return new Error(`Request to ${url} failed with status ${error.response.status}. ` + `Method: ${init.method}`);
             }
             return error;
@@ -646,26 +533,22 @@ const fetch = new FetchBuilder(UserSchema)
     })
     .build();
 
-// Use the configured fetch instance
 try {
     const response = await fetch('https://api.example.com/users/123');
-    // response.data includes the _metadata added by postResponseSuccess
-    console.log(response.data);
+    console.log(response.data); // includes the _metadata added by postResponseSuccess
 } catch (error) {
-    // Error message includes details added by postResponseError
-    console.error(error.message);
+    console.error(error.message); // includes details added by postResponseError
 }
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Predefined Authentication Example
+#### Predefined authentication <a name="predefined-authentication-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
 import { z } from 'zod';
 
-// Define response schema
 const UserSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -695,13 +578,13 @@ const fetch = new FetchBuilder(UserSchema)
     })
     .build();
 
-// All requests will automatically include the auth headers
+// All requests automatically include the auth headers
 const response = await fetch('https://api.example.com/users/123');
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Custom Logger Example
+#### Custom logger <a name="custom-logger-example"></a>
 
 ```typescript
 import { FetchBuilder } from '@smooai/fetch';
@@ -714,7 +597,6 @@ const logger = new AwsServerLogger({
     prettyPrint: true, // Human-readable logs in development
 });
 
-// Create a fetch instance with the logger
 const fetch = new FetchBuilder(
     z.object({
         id: z.string(),
@@ -724,11 +606,8 @@ const fetch = new FetchBuilder(
     .withLogger(logger)
     .build();
 
-// All requests now include:
-// - Correlation IDs that flow across services
-// - Automatic performance tracking
-// - Full error context with stack traces
-// - Request/response details
+// All requests now include correlation IDs, performance tracking,
+// full error context, and request/response details.
 const response = await fetch('https://api.example.com/users/123');
 
 // Or bring your own logger that implements LoggerInterface
@@ -748,9 +627,9 @@ const customLogger = {
 };
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-#### Error Handling <a name="error-handling"></a>
+#### Error handling <a name="error-handling"></a>
 
 ```typescript
 import fetch, { HTTPResponseError, RatelimitError, RetryError, TimeoutError } from '@smooai/fetch';
@@ -771,49 +650,41 @@ try {
 }
 ```
 
-<p align="right">(<a href="#examples">back to examples</a>)</p>
+<p align="right">(<a href="#-examples">back to examples</a>)</p>
 
-### Built With
+### Built with
 
 - TypeScript
 - Native Fetch API
-- [Mollitia](https://github.com/genesys/mollitia) (Circuit Breaker, Rate Limiter)
+- [Mollitia](https://github.com/genesys/mollitia) — circuit breaker and rate limiter
 - [Standard Schema](https://github.com/standard-schema/standard-schema)
-- [@smooai/logger](https://github.com/SmooAI/logger) for structured logging (bring your own logger supported)
-- [@smooai/utils](https://github.com/SmooAI/utils) for Standard Schema validation and human-readable error generation
+- [@smooai/logger](https://github.com/SmooAI/logger) — structured logging (bring your own logger supported)
+- [@smooai/utils](https://github.com/SmooAI/utils) — Standard Schema validation and human-readable error generation
 
-## Contributing
+## 🧩 Part of Smoo AI
 
-Contributions are welcome! This project uses [changesets](https://github.com/changesets/changesets) to manage versions and releases.
+`@smooai/fetch` is part of the [Smoo AI](https://smoo.ai) platform — an AI-powered business platform with AI built into every product. It's one of a family of open-source packages we maintain to keep our own stack honest:
 
-### Development Workflow
+- [@smooai/logger](https://github.com/SmooAI/logger) — contextual logging for AWS and the browser
+- [@smooai/config](https://github.com/SmooAI/config) — type-safe config, secrets, and feature flags
+- [smooth](https://github.com/SmooAI/smooth) — the SmooAI developer toolchain
 
-1. Fork the repository
-2. Create your branch (`git checkout -b amazing-feature`)
-3. Make your changes
-4. Add a changeset to document your changes:
+## 🤝 Contributing
 
-    ```sh
-    pnpm changeset
-    ```
+Contributions are welcome. This project uses [changesets](https://github.com/changesets/changesets) to manage versions and releases.
 
-    This will prompt you to:
-    - Choose the type of version bump (patch, minor, or major)
-    - Provide a description of the changes
-
-5. Commit your changes (`git commit -m 'Add some amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Pull Request Guidelines
-
-- Reference any related issues in your PR description
+1. Fork the repository.
+2. Create your branch (`git checkout -b amazing-feature`).
+3. Make your changes.
+4. Add a changeset to document them: `pnpm changeset` — it prompts for the version bump type (patch, minor, or major) and a description.
+5. Commit and push your branch.
+6. Open a pull request, referencing any related issues.
 
 The maintainers will review your PR and may request changes before merging.
 
-<!-- CONTACT -->
+## 📄 License
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+MIT © SmooAI. See [LICENSE](LICENSE).
 
 ## Contact
 
@@ -825,29 +696,10 @@ Brent Rager
 - [TikTok](https://www.tiktok.com/@brentragertech)
 - [Instagram](https://www.instagram.com/brentragertech/)
 
-Smoo Github: [https://github.com/SmooAI](https://github.com/SmooAI)
+Smoo GitHub: [github.com/SmooAI](https://github.com/SmooAI)
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+---
 
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-
-[sst.dev-url]: https://reactjs.org/
-[sst]: https://img.shields.io/badge/sst-EDE1DA?style=for-the-badge&logo=sst&logoColor=E27152
-[sst-url]: https://sst.dev/
-[next]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
-[next-url]: https://nextjs.org/
-[aws]: https://img.shields.io/badge/aws-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white
-[aws-url]: https://tailwindcss.com/
-[tailwindcss]: https://img.shields.io/badge/tailwind%20css-0B1120?style=for-the-badge&logo=tailwindcss&logoColor=#06B6D4
-[tailwindcss-url]: https://tailwindcss.com/
-[zod]: https://img.shields.io/badge/zod-3E67B1?style=for-the-badge&logoColor=3E67B1
-[zod-url]: https://zod.dev/
-[sanity]: https://img.shields.io/badge/sanity-F36458?style=for-the-badge
-[sanity-url]: https://www.sanity.io/
-[vitest]: https://img.shields.io/badge/vitest-1E1E20?style=for-the-badge&logo=vitest&logoColor=#6E9F18
-[vitest-url]: https://vitest.dev/
-[pnpm]: https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white
-[pnpm-url]: https://pnpm.io/
-[turborepo]: https://img.shields.io/badge/turborepo-000000?style=for-the-badge&logo=turborepo&logoColor=#EF4444
-[turborepo-url]: https://turbo.build/
+<p align="center">
+  Built by <a href="https://smoo.ai"><strong>Smoo AI</strong></a> — AI built into every product.
+</p>
