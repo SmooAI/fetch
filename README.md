@@ -1,17 +1,14 @@
 <p align="center">
-  <a href="https://smoo.ai"><img src="https://smoo.ai/images/logo/logo.svg" alt="Smoo AI" width="220" /></a>
-</p>
-
-<h1 align="center">@smooai/fetch</h1>
-
-<p align="center">
-  <strong>A resilient, type-safe HTTP client that handles the chaos of real-world APIs for you.</strong>
+  <a href="https://smoo.ai"><img src=".github/banner.png" alt="@smooai/fetch — Resilient, type-safe HTTP for real-world APIs" width="100%" /></a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@smooai/fetch"><img src="https://img.shields.io/npm/v/@smooai/fetch?style=flat-square&color=00A6A6&label=npm" alt="npm"></a>
-  <img src="https://img.shields.io/badge/Smoo_AI-platform-00A6A6?style=flat-square" alt="Smoo AI">
-  <img src="https://img.shields.io/badge/license-MIT-F49F0A?style=flat-square" alt="license">
+  <a href="https://www.npmjs.com/package/@smooai/fetch"><img src="https://img.shields.io/npm/v/@smooai/fetch?style=for-the-badge&color=00A6A6&label=npm&logo=npm&logoColor=white&labelColor=020618" alt="npm"></a>
+  <a href="https://smoo.ai"><img src="https://img.shields.io/badge/Smoo_AI-platform-00A6A6?style=for-the-badge&labelColor=020618" alt="Smoo AI"></a>
+  <img src="https://img.shields.io/badge/license-MIT-F49F0A?style=for-the-badge&labelColor=020618" alt="license">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust">
@@ -19,11 +16,11 @@
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> ·
-  <a href="#-install">Install</a> ·
-  <a href="#-usage">Usage</a> ·
-  <a href="#-examples">Examples</a> ·
-  <a href="#-part-of-smoo-ai">Platform</a>
+  <a href="#-features"><b>Features</b></a> &nbsp;·&nbsp;
+  <a href="#-install"><b>Install</b></a> &nbsp;·&nbsp;
+  <a href="#-usage"><b>Usage</b></a> &nbsp;·&nbsp;
+  <a href="#-examples"><b>Examples</b></a> &nbsp;·&nbsp;
+  <a href="#-part-of-smoo-ai"><b>Platform</b></a>
 </p>
 
 ---
@@ -663,11 +660,10 @@ try {
 
 ## 🧩 Part of Smoo AI
 
-`@smooai/fetch` is part of the [Smoo AI](https://smoo.ai) platform — an AI-powered business platform with AI built into every product. It's one of a family of open-source packages we maintain to keep our own stack honest:
+`@smooai/fetch` is built and open-sourced by **[Smoo AI](https://smoo.ai)** — the AI-powered business platform with AI built into every product: CRM, customer support, campaigns, field service, observability, and developer tools.
 
-- [@smooai/logger](https://github.com/SmooAI/logger) — contextual logging for AWS and the browser
-- [@smooai/config](https://github.com/SmooAI/config) — type-safe config, secrets, and feature flags
-- [smooth](https://github.com/SmooAI/smooth) — the SmooAI developer toolchain
+- 🧰 **More open source from Smoo AI** — [smoo.ai/open-source](https://smoo.ai/open-source)
+- 🧩 **Sibling packages** — [@smooai/logger](https://github.com/SmooAI/logger), [@smooai/config](https://github.com/SmooAI/config), [smooth](https://github.com/SmooAI/smooth)
 
 ## 🤝 Contributing
 
