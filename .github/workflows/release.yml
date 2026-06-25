@@ -118,10 +118,11 @@ jobs:
 
             - name: Publish smooai-fetch to crates.io
               if: steps.changesets.outputs.published == 'true'
-              # --allow-dirty is needed because sync-versions.mjs modifies
-              # Cargo.toml (and rebuild updates Cargo.lock) between the
-              # committed state and publish. --locked would reject that mismatch.
-              run: cargo publish --allow-dirty --manifest-path rust/fetch/Cargo.toml
+              # --locked: sync-versions.mjs now stamps Cargo.lock in lockstep with
+              # Cargo.toml, so the lock matches and the publish build is reproducible.
+              # --allow-dirty: sync-versions.mjs modifies the manifests in-place at
+              # publish time (uncommitted), which --allow-dirty permits.
+              run: cargo publish --locked --allow-dirty --manifest-path rust/fetch/Cargo.toml
               env:
                   CARGO_REGISTRY_TOKEN: ${{ secrets.SMOOAI_CARGO_REGISTRY_TOKEN }}
 

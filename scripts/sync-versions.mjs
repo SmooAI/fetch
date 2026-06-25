@@ -28,6 +28,16 @@ const files = [
         replacement: `version = "${version}"`,
     },
     {
+        // Keep rust/fetch/Cargo.lock's own crate entry in lockstep with the Cargo.toml
+        // bump above — name-targeted so a same-versioned DEPENDENCY is never touched.
+        // Without this the lock pins the old version and `cargo build/publish --locked`
+        // rejects the mismatch (which is why the release used `--allow-dirty`); stamping
+        // it lets the publish run `--locked` reproducibly.
+        path: join(rootDir, 'rust', 'fetch', 'Cargo.lock'),
+        pattern: /(name = "smooai-fetch"\nversion = )"[^"]*"/,
+        replacement: `$1"${version}"`,
+    },
+    {
         path: join(rootDir, 'go', 'fetch', 'version.go'),
         pattern: /const Version = ".*"/,
         replacement: `const Version = "${version}"`,
