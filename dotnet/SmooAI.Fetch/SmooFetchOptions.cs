@@ -22,6 +22,16 @@ public sealed class SmooFetchOptions
     /// <summary>Per-request timeout. Defaults to 10 seconds, matching the TS implementation.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Optional bounded timeout for establishing the TCP/TLS connection, mapped to
+    /// <see cref="System.Net.Http.SocketsHttpHandler.ConnectTimeout"/>. Mirrors the Rust
+    /// <c>with_connect_timeout</c> port. Defaults to <c>null</c> (unset) so existing
+    /// consumers are behaviorally unchanged — a black-holed connect otherwise stalls until
+    /// the whole-request <see cref="Timeout"/> before a retry can land on a live endpoint.
+    /// Ignored when <see cref="RequireHttpClientFactory"/> is true (the factory owns the handler).
+    /// </summary>
+    public TimeSpan? ConnectTimeout { get; set; }
+
     /// <summary>Optional auth token provider. When set, the returned token is added as <c>Authorization: Bearer {token}</c>.</summary>
     public AuthTokenProvider? AuthTokenProvider { get; set; }
 

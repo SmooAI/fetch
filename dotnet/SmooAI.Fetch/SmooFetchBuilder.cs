@@ -65,6 +65,17 @@ public sealed class SmooFetchBuilder
         return this;
     }
 
+    /// <summary>
+    /// Set a bounded connect timeout (maps to <see cref="System.Net.Http.SocketsHttpHandler.ConnectTimeout"/>).
+    /// Mirrors the Rust <c>with_connect_timeout</c> port. Default-off; only affects
+    /// self-managed clients (not <see cref="IHttpClientFactory"/>-owned handlers).
+    /// </summary>
+    public SmooFetchBuilder WithConnectTimeout(TimeSpan connectTimeout)
+    {
+        _options.ConnectTimeout = connectTimeout;
+        return this;
+    }
+
     /// <summary>Register an async auth-token provider.</summary>
     public SmooFetchBuilder WithAuthTokenProvider(AuthTokenProvider provider, string scheme = "Bearer")
     {
@@ -219,6 +230,7 @@ public sealed class SmooFetchBuilder
             o.BaseUrl = _options.BaseUrl;
             o.RetryPolicy = _options.RetryPolicy;
             o.Timeout = _options.Timeout;
+            o.ConnectTimeout = _options.ConnectTimeout;
             o.AuthTokenProvider = _options.AuthTokenProvider;
             o.AuthScheme = _options.AuthScheme;
             o.JsonOptions = _options.JsonOptions;
