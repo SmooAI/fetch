@@ -164,6 +164,12 @@ pub struct FetchOptions {
     pub timeout: Option<TimeoutOptions>,
     /// Retry configuration.
     pub retry: Option<RetryOptions>,
+    /// Connect timeout in milliseconds. When set, the underlying reqwest client
+    /// is built with `connect_timeout(...)` so a connection that never
+    /// establishes (e.g. a black-holed SYN to a stale/dead endpoint IP) fails
+    /// fast instead of blocking until the whole-request `timeout`. `None`
+    /// (default) preserves the previous behavior with no connect timeout.
+    pub connect_timeout_ms: Option<u64>,
 }
 
 /// HTTP method type.
