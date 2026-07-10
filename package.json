@@ -127,7 +127,8 @@
         "@standard-schema/spec": "^1.0.0",
         "@standard-schema/utils": "^0.3.0",
         "lodash.merge": "^4.6.2",
-        "mollitia": "^0.1.1"
+        "mollitia": "^0.1.1",
+        "undici": "^6"
     },
     "devDependencies": {
         "@changesets/cli": "^2.28.1",

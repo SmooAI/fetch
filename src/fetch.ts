@@ -53,6 +53,32 @@ const globalFetch = (): typeof global.fetch => {
 };
 
 /**
+ * Cache of undici `Agent` dispatchers keyed by connect-timeout ms, so we build
+ * one Agent per distinct timeout instead of per request.
+ */
+const connectTimeoutDispatchers = new Map<number, unknown>();
+
+/**
+ * Resolve an undici `Agent` dispatcher that bounds the connect phase to
+ * `connectTimeoutMs`. Node only: browsers/Web Workers have no connect-timeout
+ * knob, so this returns `undefined` there (and no `dispatcher` is passed, making
+ * behavior byte-identical to today). undici is imported lazily so it is never
+ * loaded unless a connect timeout is actually requested.
+ */
+async function getConnectTimeoutDispatcher(connectTimeoutMs: number): Promise<unknown | undefined> {
+    // Only Node's fetch (undici) honors a `dispatcher`. Bail everywhere else.
+    if (typeof window !== 'undefined' || typeof process === 'undefined' || !process.versions?.node) {
+        return undefined;
+    }
+    const cached = connectTimeoutDispatchers.get(connectTimeoutMs);
+    if (cached) return cached;
+    const { Agent } = await import('undici');
+    const dispatcher = new Agent({ connect: { timeout: connectTimeoutMs } });
+    connectTimeoutDispatchers.set(connectTimeoutMs, dispatcher);
+    return dispatcher;
+}
+
+/**
  * Interface for browser-compatible logging functionality.
  * Provides methods for different log levels with context support.
  */
@@ -291,6 +317,17 @@ export interface RequestOptions<Schema extends StandardSchemaV1 = never> {
         /** Timeout duration in milliseconds */
         timeoutMs: number;
     };
+    /**
+     * Connect timeout in milliseconds. Bounds only the connection-establishment
+     * phase (Node only, via an undici `Agent` dispatcher). When set, a connect
+     * that never completes (e.g. a black-holed SYN to a dead pod IP still
+     * lingering in a ClusterIP's iptables) fails in ~this window and the
+     * configured retry can land on a live endpoint — instead of stalling until
+     * the whole-request {@link timeout}. Slow-but-alive handlers are unaffected.
+     * Leaving it unset preserves the previous no-connect-timeout behavior.
+     * Ignored in browser/worker environments (no connect-timeout knob there).
+     */
+    connectTimeoutMs?: number;
     /** Retry configuration */
     retry?: RetryOptions;
     /** Schema for response validation. Must be a StandardSchemaV1 compatible schema (e.g., Zod schema) */
@@ -504,6 +541,15 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     // Stringify JSON body if needed
     if ((useInit?.headers as Record<string, string>)?.['Content-Type'] === 'application/json' && typeof useInit.body === 'object') {
         useInit.body = JSON.stringify(useInit.body);
+    }
+
+    // Bound the connect phase via an undici dispatcher (Node only). Only attach
+    // when explicitly requested so the default path stays byte-identical.
+    if (options?.connectTimeoutMs) {
+        const dispatcher = await getConnectTimeoutDispatcher(options.connectTimeoutMs);
+        if (dispatcher) {
+            (useInit as Record<string, unknown>).dispatcher = dispatcher;
+        }
     }
 
     const response = await globalFetch()(url, useInit);
@@ -801,6 +847,24 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
         this._requestOptions = {
             ...this._requestOptions,
             timeout: { timeoutMs },
+        };
+        return this;
+    }
+
+    /**
+     * Sets the connect timeout (Node only). Bounds only the
+     * connection-establishment phase so a black-holed connect fails fast and
+     * retry can land on a live endpoint, instead of stalling until the
+     * whole-request {@link withTimeout} elapses. Leaving it unset preserves the
+     * previous no-connect-timeout behavior; ignored in browser/worker builds.
+     * Mirrors the Rust `FetchBuilder::with_connect_timeout`.
+     * @param connectTimeoutMs - Connect timeout duration in milliseconds
+     * @returns The builder instance for method chaining
+     */
+    withConnectTimeout(connectTimeoutMs: number): FetchBuilder<Schema> {
+        this._requestOptions = {
+            ...this._requestOptions,
+            connectTimeoutMs,
         };
         return this;
     }
