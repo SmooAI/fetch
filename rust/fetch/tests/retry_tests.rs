@@ -131,6 +131,7 @@ async fn test_retry_succeeds_after_failures() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 2,
@@ -185,6 +186,7 @@ async fn test_retry_exhausted() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 2,
@@ -241,6 +243,7 @@ async fn test_non_retryable_error_not_retried() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 3,
@@ -291,6 +294,7 @@ async fn test_retry_with_retry_after_header() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 10000 }),
         retry: Some(RetryOptions {
             attempts: 1,
@@ -353,6 +357,7 @@ async fn test_fast_first_skips_initial_delay() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 1,
@@ -428,6 +433,7 @@ async fn test_on_rejection_retry_decision_overrides_delay() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 1,
@@ -486,6 +492,7 @@ async fn test_on_rejection_abort_stops_retry_loop() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 3,
@@ -535,6 +542,7 @@ async fn test_on_rejection_default_falls_through_to_exponential() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 1,
@@ -585,6 +593,7 @@ async fn test_on_rejection_skip_consumes_attempt_without_sleep() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: Some(RetryOptions {
             attempts: 2,

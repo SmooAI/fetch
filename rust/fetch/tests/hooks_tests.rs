@@ -44,6 +44,7 @@ async fn test_pre_request_hook_modifies_url() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -94,6 +95,7 @@ async fn test_pre_request_hook_adds_headers() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -131,6 +133,7 @@ async fn test_pre_request_hook_returns_none_passes_through() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -175,6 +178,7 @@ async fn test_post_response_success_hook_modifies_response() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -219,6 +223,7 @@ async fn test_post_response_success_hook_returns_none_passes_through() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -267,6 +272,7 @@ async fn test_post_response_error_hook_replaces_error() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -317,6 +323,7 @@ async fn test_post_response_error_hook_returns_none_passes_through() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -386,6 +393,7 @@ async fn test_all_hooks_together() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };

@@ -76,6 +76,7 @@ pub async fn fetch<T: serde::de::DeserializeOwned + Clone + Send + 'static>(
     init: RequestInit,
 ) -> Result<FetchResponse<T>, FetchError> {
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(defaults::default_timeout_options()),
         retry: Some(defaults::default_retry_options()),
     };
