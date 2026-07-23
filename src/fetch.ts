@@ -381,9 +381,52 @@ function getHeadersObject(headers: Headers | Record<string, string> | undefined)
     return headers;
 }
 
+// Credential params whose values must never reach a log record. The logger
+// redacts by object key (headers, JSON fields), but a url-encoded request body
+// is an opaque string it can't see into — so `client_secret=sk_...` in an OAuth
+// token-exchange body sails through in plaintext. SMOODEV-2716: a config-client
+// token exchange leaked its client_secret to CloudWatch this way.
+const REDACTED_FORM_PARAMS = new Set([
+    'client_secret',
+    'client_id',
+    'secret',
+    'password',
+    'access_token',
+    'refresh_token',
+    'token',
+    'code',
+    'assertion',
+    'client_assertion',
+    'api_key',
+    'apikey',
+]);
+
+// Scrub sensitive values from an x-www-form-urlencoded body before it is logged.
+// Splits on the FIRST `=` per pair so base64 values with `=` padding survive.
+export function redactFormCredentials(body: string): string {
+    const trimmed = body.trimStart();
+    // Only touch form-encoded strings; leave JSON (logger key-redacts that) alone.
+    if (!body.includes('=') || trimmed.startsWith('{') || trimmed.startsWith('[')) return body;
+    let changed = false;
+    const out = body
+        .split('&')
+        .map((pair) => {
+            const eq = pair.indexOf('=');
+            if (eq === -1) return pair;
+            const key = pair.slice(0, eq);
+            if (REDACTED_FORM_PARAMS.has(key.toLowerCase())) {
+                changed = true;
+                return `${key}=[REDACTED]`;
+            }
+            return pair;
+        })
+        .join('&');
+    return changed ? out : body;
+}
+
 function getRequestBody(body: any): string | undefined {
     if (!body) return undefined;
-    if (typeof body === 'string') return body;
+    if (typeof body === 'string') return redactFormCredentials(body);
     if (typeof body === 'object') return JSON.stringify(body);
     return String(body);
 }
