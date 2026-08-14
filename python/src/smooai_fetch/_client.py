@@ -140,6 +140,48 @@ def _parse_response(response: httpx.Response, schema: type[BaseModel] | None = N
         raise HTTPResponseError(response)
 
 
+def _inject_trace_context(headers: dict[str, str]) -> dict[str, str]:
+    """Return ``headers`` plus W3C trace context (``traceparent``/``tracestate``).
+
+    Why this exists: api-prime already EXTRACTS ``traceparent`` on ingress, but
+    nothing on the platform ever injected it on egress, so every service-to-service
+    call began a brand new root trace. Measured 2026-08-14 over three hours: 34,961
+    traces touched exactly one service, 4 touched two. The client is the right place
+    to fix that once for the fleet.
+
+    Three guards, mirroring the Rust port:
+
+    1. **Optional dependency.** ``opentelemetry-api`` is an extra (``smooai-fetch[otel]``).
+       Without it this is a no-op — an OSS HTTP client must not force OTel on anyone.
+    2. **Valid span contexts only.** With no active span the current span context is
+       ``INVALID_SPAN_CONTEXT`` (all-zero ids). Injecting that writes a malformed
+       ``traceparent`` a downstream service will reject or, worse, adopt — poisoning
+       its trace. ``inject()`` happens to skip an invalid context today; the explicit
+       check means we do not depend on that staying true.
+    3. **Caller wins.** An explicitly-set ``traceparent`` is left alone. A client that
+       silently rewrites an intentional header is worse than one that does nothing.
+
+    Returns a NEW dict rather than mutating: the caller's ``request_kwargs`` are shared
+    across retries, and a latched header would make guard 3 preserve a stale traceparent
+    on every attempt after the first.
+    """
+    if any(key.lower() == "traceparent" for key in headers):
+        return headers
+
+    try:
+        from opentelemetry.propagate import inject
+        from opentelemetry.trace import get_current_span
+    except ImportError:
+        return headers
+
+    if not get_current_span().get_span_context().is_valid:
+        return headers
+
+    carrier = dict(headers)
+    inject(carrier)
+    return carrier
+
+
 def _get_retry_after(error: Exception) -> float | None:
     """Extract Retry-After header value from an HTTPResponseError.
 
@@ -282,9 +324,16 @@ async def fetch(
         """Inner execution: rate limit -> circuit breaker -> HTTP call -> parse."""
 
         async def _do_request() -> FetchResponse[Any]:
+            # Continue the caller's trace across the hop. Injected HERE, at the
+            # single-request site, not at fetch() entry — so every retry attempt
+            # carries a CURRENT traceparent, not one baked when fetch() was called.
+            attempt_kwargs = {
+                **request_kwargs,
+                "headers": _inject_trace_context(request_kwargs.get("headers") or {}),
+            }
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.request(**request_kwargs)
+                    response = await client.request(**attempt_kwargs)
                 return _parse_response(response, schema)
             except httpx.TimeoutException as e:
                 raise FetchTimeoutError(

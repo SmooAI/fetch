@@ -494,6 +494,65 @@ function prepareFetchContainerModules(options: RequestOptions, containerOptions?
     return modules;
 }
 
+/**
+ * Cached, best-effort handle on `@opentelemetry/api`.
+ *
+ * The package is an OPTIONAL peer dependency: an OSS HTTP client must not force
+ * OpenTelemetry on anyone. When it is absent the import rejects, this resolves
+ * `null`, and injection becomes a no-op — no crash, no behaviour change.
+ */
+let otelApi: Promise<typeof import('@opentelemetry/api') | null> | undefined;
+
+/**
+ * Inject W3C trace context (`traceparent`/`tracestate`) into an outbound request.
+ *
+ * # Why this exists
+ *
+ * api-prime already EXTRACTS `traceparent` on ingress, but nothing on the
+ * platform ever injected it on egress — so every service-to-service call began a
+ * brand new root trace. Measured on 2026-08-14 over a three-hour window: 34,961
+ * traces touched exactly one service, and 4 touched two.
+ *
+ * This is the client, which is the correct place for propagation: services are
+ * already required to use `@smooai/fetch` over raw HTTP, so wiring it once here
+ * covers the fleet. Mirrors `rust/fetch/src/client.rs::inject_trace_context`.
+ *
+ * # Three guards, each for a reason
+ *
+ * 1. **Optional dependency.** No `@opentelemetry/api` installed → no-op.
+ * 2. **Valid span contexts only.** No registered SDK / no active span yields
+ *    INVALID_SPAN_CONTEXT (all-zero ids). Injecting that writes a malformed
+ *    `traceparent` a downstream service will either reject or, worse, adopt —
+ *    poisoning its trace. The sibling logger shipped exactly this bug, where
+ *    all-zero ids overwrote a real correlation id.
+ * 3. **Caller wins.** An explicitly-set `traceparent` is left alone. A client
+ *    that silently rewrites an intentional header is worse than one that does
+ *    nothing.
+ */
+async function injectTraceContext(init: RequestInit): Promise<void> {
+    otelApi ??= import('@opentelemetry/api').catch(() => null);
+    const otel = await otelApi;
+    if (!otel) return;
+
+    const activeContext = otel.context.active();
+    const spanContext = otel.trace.getSpanContext(activeContext);
+    if (!spanContext || !otel.isSpanContextValid(spanContext)) return;
+
+    // Copy rather than mutate: the caller's `init` is reused across retries, and a
+    // header we wrote ourselves must never be mistaken for the caller's on the next
+    // attempt — that would pin every retry to the traceparent of the first one.
+    const headers = new Headers(init.headers as HeadersInit | undefined);
+    if (headers.has('traceparent')) return;
+
+    const carrier: Record<string, string> = {};
+    otel.propagation.inject(activeContext, carrier);
+    if (Object.keys(carrier).length === 0) return;
+    for (const [key, value] of Object.entries(carrier)) {
+        headers.set(key, value);
+    }
+    init.headers = headers;
+}
+
 async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     url: RequestInfo,
     init?: RequestInit,
@@ -505,6 +564,11 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     if ((useInit?.headers as Record<string, string>)?.['Content-Type'] === 'application/json' && typeof useInit.body === 'object') {
         useInit.body = JSON.stringify(useInit.body);
     }
+
+    // Continue the caller's trace across the hop. This is the single-request site —
+    // the innermost place that performs exactly one HTTP call — so every retry and
+    // every re-issued request carries a CURRENT traceparent instead of a stale one.
+    await injectTraceContext(useInit);
 
     const response = await globalFetch()(url, useInit);
     let isJson = false;

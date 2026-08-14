@@ -9,6 +9,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Client is a resilient HTTP client with built-in retry, timeout,
@@ -132,6 +136,50 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 	return doRequest(ctx)
 }
 
+// injectTraceContext writes W3C trace context (`traceparent`/`tracestate`) onto
+// an outbound request so a trace survives the service hop.
+//
+// # Why this exists
+//
+// api-prime already EXTRACTS `traceparent` on ingress, but nothing on the
+// platform ever injected it on egress — so every service-to-service call began a
+// brand new root trace. Measured over a three-hour production window: 34,961
+// traces touched exactly one service, and 4 touched two. Distributed tracing did
+// not work, and no amount of extra spans inside a service could fix it.
+//
+// The client is the correct place for propagation: services are already required
+// to use @smooai/fetch over raw net/http, so wiring it once here covers the fleet.
+//
+// # Two guards, each for a reason
+//
+//  1. Caller wins. If the caller already set `traceparent` explicitly, theirs is
+//     left alone. A client that silently rewrites an intentional header is worse
+//     than one that does nothing.
+//  2. Valid span contexts only. With no active span the context carries
+//     `trace.SpanContext{}` — all-zero ids. Injecting that writes a malformed
+//     `00-000…-00` traceparent that a downstream service will either reject or,
+//     worse, adopt — poisoning its trace. The sibling logger shipped exactly this
+//     bug, where all-zero ids overwrote a real correlation id. The stock W3C
+//     propagator happens to guard this too, so the check is defence in depth
+//     against a custom or composite propagator that does not.
+//
+// With no propagator configured the OTel global default is a no-op composite, so
+// a service that has not set one up sends nothing extra either way.
+func injectTraceContext(req *http.Request) {
+	// http.Header.Get canonicalises, so this catches whatever casing the caller
+	// used — the case-insensitive check the header map cannot do on its own.
+	if req.Header.Get("traceparent") != "" {
+		return
+	}
+
+	ctx := req.Context()
+	if !trace.SpanContextFromContext(ctx).IsValid() {
+		return
+	}
+
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+}
+
 // executeHTTPRequest performs the actual HTTP request and parses the response.
 func executeHTTPRequest[T any](
 	ctx context.Context,
@@ -187,6 +235,13 @@ func executeHTTPRequest[T any](
 			req = newReq
 		}
 	}
+
+	// Continue the caller's trace across the hop. Applied AFTER the caller's own
+	// headers and after the pre-request hook (which may replace the whole
+	// request) so an explicitly-set `traceparent` still wins. This is the
+	// single-request site, inside the retry/timeout/breaker wrappers, so every
+	// attempt carries a CURRENT traceparent rather than a stale one.
+	injectTraceContext(req)
 
 	// Apply auth-token provider (after the pre-request hook so the hook can
 	// adjust the URL/init first; the resulting Authorization header overrides
