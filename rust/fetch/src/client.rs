@@ -71,6 +71,102 @@ async fn acquire_with_retry(
     })
 }
 
+/// Inject W3C trace context (`traceparent`/`tracestate`) into an outbound request.
+///
+/// # Why this exists
+///
+/// api-prime already EXTRACTS `traceparent` on ingress, but nothing on the
+/// platform ever injected it on egress — so every service-to-service call began a
+/// brand new root trace. Measured on 2026-08-14 over a three-hour window:
+/// 34,961 traces touched exactly one service, and 4 touched two. Distributed
+/// tracing did not work, and no amount of extra spans inside a service could fix
+/// it.
+///
+/// This is the client, which is the correct place for propagation: services are
+/// already required to use `@smooai/fetch` over raw HTTP, so wiring it once here
+/// covers the fleet.
+///
+/// # Three guards, each for a reason
+///
+/// 1. **Optional feature.** With `otel` off this is a no-op and the crate does
+///    not link OpenTelemetry — an OSS HTTP client must not force that on anyone.
+/// 2. **Valid span contexts only.** An unregistered TracerProvider yields
+///    `INVALID_SPAN_CONTEXT` (all-zero ids). Injecting that writes a malformed
+///    `traceparent` that a downstream service will either reject or, worse,
+///    adopt — poisoning its trace. The sibling logger shipped exactly this bug,
+///    where all-zero ids overwrote a real correlation id.
+/// 3. **Caller wins.** If the caller already set `traceparent` explicitly, theirs
+///    is left alone. A client that silently rewrites an intentional header is
+///    worse than one that does nothing.
+#[cfg(feature = "otel")]
+fn inject_trace_context(
+    builder: reqwest::RequestBuilder,
+    caller_headers: &std::collections::HashMap<String, String>,
+) -> reqwest::RequestBuilder {
+    use opentelemetry::trace::TraceContextExt as _;
+    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+    if caller_headers
+        .keys()
+        .any(|k| k.eq_ignore_ascii_case("traceparent"))
+    {
+        return builder;
+    }
+
+    // TWO context homes, and neither falls back to the other.
+    //
+    // Every SmooAI Rust service carries its span as a `tracing` span picked up by
+    // a tracing-opentelemetry layer; that context is reachable ONLY through
+    // `Span::current().context()`. `opentelemetry::Context::current()` sees just
+    // OTel-native spans. Reading only the latter — which is what this function
+    // did first — makes the entire feature a silent no-op in production while
+    // passing a test that happens to create an OTel-native span.
+    // Read the `tracing` span's context first, then fall back to the OTel-native
+    // one.
+    //
+    // Measured, not assumed: with tracing-opentelemetry 0.33 + opentelemetry
+    // 0.32, `Context::current()` DOES see a tracing span, so the fallback alone
+    // would work today. This ordering is belt-and-braces — it does not depend on
+    // tracing-opentelemetry continuing to mirror into the OTel thread-local, and
+    // it costs one extra call.
+    let cx = tracing::Span::current().context();
+    let cx = if cx.span().span_context().is_valid() {
+        cx
+    } else {
+        opentelemetry::Context::current()
+    };
+
+    if !cx.span().span_context().is_valid() {
+        return builder;
+    }
+
+    // `HashMap<String, String>` implements `Injector` upstream (opentelemetry
+    // 0.32 propagation/mod.rs), so there is no carrier type to write and no
+    // `opentelemetry-http` dependency to add.
+    let mut carrier: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&cx, &mut carrier);
+    });
+
+    let mut builder = builder;
+    for (key, value) in carrier {
+        // reqwest's `.header()` APPENDS rather than replaces, so a duplicate
+        // would send two traceparents. The caller-wins guard above is what keeps
+        // that from happening.
+        builder = builder.header(key, value);
+    }
+    builder
+}
+
+/// No-op when the `otel` feature is off — the crate does not link OpenTelemetry.
+#[cfg(not(feature = "otel"))]
+fn inject_trace_context(
+    builder: reqwest::RequestBuilder,
+    _caller_headers: &std::collections::HashMap<String, String>,
+) -> reqwest::RequestBuilder {
+    builder
+}
+
 /// Perform a single HTTP request (no retry, no timeout wrapper).
 async fn do_single_request<T: DeserializeOwned>(
     url: &str,
@@ -84,6 +180,10 @@ async fn do_single_request<T: DeserializeOwned>(
     for (key, value) in &init.headers {
         request_builder = request_builder.header(key, value);
     }
+
+    // Continue the caller's trace across the hop. Applied AFTER the caller's own
+    // headers so an explicitly-set `traceparent` still wins (see the function).
+    request_builder = inject_trace_context(request_builder, &init.headers);
 
     // Set body
     if let Some(ref body) = init.body {
