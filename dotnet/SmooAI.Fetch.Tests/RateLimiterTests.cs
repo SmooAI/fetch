@@ -128,9 +128,17 @@ public class RateLimiterTests : IAsyncLifetime
     [Fact]
     public async Task RateLimit_state_is_shared_across_calls_on_same_client()
     {
-        // Issuing 3 calls fills the window. A 4th must wait ~1s before being
-        // sent, proving the limiter state is held on the client instance rather
-        // than reconstructed per fetch().
+        // One call fills the window; the next must wait for it to roll over,
+        // proving the limiter state is held on the client instance rather than
+        // reconstructed per fetch().
+        //
+        // A single priming call is load-bearing. This used to prime with THREE
+        // calls against an 800ms window and time the fourth — so whenever a cold
+        // WireMock made those three take longer than the window, it had already
+        // rolled over and the timed call waited 0ms. That is the flake that went
+        // red on CI (`got 0ms`) while passing everywhere else. Priming once
+        // against a window far longer than any plausible single request leaves
+        // the assertion measuring the limiter instead of the machine.
         _server
             .Given(Request.Create().WithPath("/ping").UsingGet())
             .RespondWith(Response.Create()
@@ -138,28 +146,30 @@ public class RateLimiterTests : IAsyncLifetime
                 .WithHeader("Content-Type", "application/json")
                 .WithBody("{\"pong\":\"yes\"}"));
 
+        var window = TimeSpan.FromSeconds(3);
         var fetch = SmooFetchBuilder.Create()
             .WithBaseUrl(_server.Urls[0])
             .WithRetry(RetryPolicy.None)
-            .WithRateLimit(maxRequests: 3, window: TimeSpan.FromMilliseconds(800))
+            .WithRateLimit(maxRequests: 1, window: window)
             .Build();
 
+        var primed = Stopwatch.StartNew();
         await fetch.GetAsync<PingResponse>("/ping");
-        await fetch.GetAsync<PingResponse>("/ping");
-        await fetch.GetAsync<PingResponse>("/ping");
+        primed.Stop();
 
         var sw = Stopwatch.StartNew();
         await fetch.GetAsync<PingResponse>("/ping");
         sw.Stop();
 
-        // Tolerance is wide because: (a) the first 3 calls consume part of the
-        // 800ms window before the 4th is issued, so the actual wait is the
-        // remaining window slice (~600ms in dev, less on slower CI), and
-        // (b) System.Threading.RateLimiting releases at segment boundaries.
-        // The assertion only needs to prove the limiter state is *shared* —
-        // any non-trivial wait does that. Use 300ms as a robust floor.
+        // The second call waits out whatever is left of the window after the
+        // first one. Assert against that remainder rather than a fixed floor, so
+        // a slow priming call shrinks the expectation instead of failing it.
+        var expected = window - primed.Elapsed - TimeSpan.FromMilliseconds(500);
         Assert.True(
-            sw.Elapsed >= TimeSpan.FromMilliseconds(300),
-            $"Expected 4th call to wait a non-trivial fraction of the window, got {sw.ElapsedMilliseconds}ms");
+            expected > TimeSpan.Zero,
+            $"Priming call took {primed.ElapsedMilliseconds}ms of a {window.TotalMilliseconds}ms window — the machine is too slow for this test to mean anything");
+        Assert.True(
+            sw.Elapsed >= expected,
+            $"Expected the 2nd call to wait out the window (≥{expected.TotalMilliseconds:F0}ms after a {primed.ElapsedMilliseconds}ms priming call), got {sw.ElapsedMilliseconds}ms");
     }
 }
