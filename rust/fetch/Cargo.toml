@@ -16,12 +16,7 @@ readme = "README.md"
 # library consumed across the platform. `default-features = false` also drops
 # reqwest's other defaults, so http2 and charset are re-enabled explicitly here;
 # omitting them would silently downgrade every consumer to HTTP/1.1.
-reqwest = { version = "0.12", default-features = false, features = [
-    "json",
-    "rustls-tls",
-    "http2",
-    "charset",
-] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "charset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
