@@ -284,13 +284,13 @@ const response = await fetch('/api/checkout', {
 
 Every port carries the shared core: **retries with backoff + jitter, `Retry-After` handling, timeouts, a sliding-window rate limiter, a circuit breaker, lifecycle hooks, an async auth-token provider, and W3C `traceparent` propagation**. The mechanics differ per ecosystem — same semantics, not byte-identical behavior:
 
-| Language   | Response typing / validation                                                                   | Resilience engine                                                             | HTTP stack                        |
-| ---------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------- |
-| TypeScript | Any [Standard Schema](https://github.com/standard-schema/standard-schema) validator (Zod, …)   | [mollitia](https://github.com/genesys/mollitia)                               | native `fetch`                    |
-| Python     | Pydantic models via `with_schema(...)`                                                         | implemented in-package                                                        | httpx                             |
-| Rust       | serde — `fetch::<T>` deserializes into your type                                               | implemented in-crate                                                          | reqwest                           |
-| Go         | Generics — `fetch.Get[User](...)` decodes into your struct; `SchemaValidationError` on failure | implemented in-package                                                        | net/http                          |
-| .NET       | System.Text.Json — `GetAsync<T>` / `PostAsync<TReq, TRes>` (no pluggable validator)            | [Polly](https://github.com/App-vNext/Polly) + `System.Threading.RateLimiting` | HttpClient / `IHttpClientFactory` |
+| Language   | Response typing / validation                                                                                                                  | Resilience engine                                                             | HTTP stack                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------- |
+| TypeScript | Any [Standard Schema](https://github.com/standard-schema/standard-schema) validator (Zod, …)                                                  | [mollitia](https://github.com/genesys/mollitia)                               | native `fetch`                    |
+| Python     | Pydantic models via `with_schema(...)`                                                                                                        | implemented in-package                                                        | httpx                             |
+| Rust       | serde — `fetch::<T>` deserializes into your type                                                                                              | implemented in-crate                                                          | reqwest                           |
+| Go         | Generics — `fetch.Get[User](...)` decodes into your struct, plus an optional `RequestOptions.Validate` hook returning `SchemaValidationError` | implemented in-package                                                        | net/http                          |
+| .NET       | System.Text.Json — `GetAsync<T>` / `PostAsync<TReq, TRes>` (no pluggable validator)                                                           | [Polly](https://github.com/App-vNext/Polly) + `System.Threading.RateLimiting` | HttpClient / `IHttpClientFactory` |
 
 Where a port leans on a battle-tested ecosystem library (mollitia, Polly), it says so above; the others implement retry/breaker/rate-limit logic natively, with each port's own test suite covering the shared behaviors.
 
