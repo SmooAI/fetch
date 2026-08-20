@@ -1,5 +1,20 @@
 name: PR Checks
 
+# One job per language, deliberately.
+#
+# This used to be a single serial `validate` job that ran typecheck -> lint ->
+# format -> test -> build across all five ports in sequence. The first failure
+# ended the run, so a Rust compile error meant the Go, Python and .NET lanes
+# never reported at all — the log said "validate: fail" and a reviewer had to
+# open it to learn which of five languages was actually broken. Splitting them
+# means every lane reports its own verdict, and the run is only as slow as its
+# slowest language instead of the sum of all of them.
+#
+# No path filtering: the shared fixtures under `spec/` are consumed by several
+# languages at once, so every filter would have to list them, and a filter that
+# forgets one silently skips that language. That is the same fail-open shape
+# these checks exist to catch, so every lane runs on every PR.
+
 on:
     pull_request:
         branches: [main]
@@ -9,79 +24,142 @@ env:
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-    validate:
+    # Cheapest lane, no language toolchain — fails fast when a release manifest
+    # has drifted from package.json.
+    versions:
+        name: Versions
         runs-on: ubuntu-latest
-        timeout-minutes: 30
-
+        timeout-minutes: 5
         steps:
             - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+            - name: Version consistency
+              run: node scripts/sync-versions.mjs --check
 
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
+    typescript:
+        name: TypeScript
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
               with:
                   node-version: 22
                   cache: 'pnpm'
+            - run: pnpm install
+            - name: Typecheck
+              run: pnpm ts:typecheck
+            - name: Lint
+              run: pnpm ts:lint
+            # oxfmt covers every file in the repo, not just TypeScript, so it
+            # belongs to exactly one job rather than each language's.
+            - name: Format check
+              run: pnpm ts:format:check
+            - name: Test
+              run: pnpm ts:test
+            - name: Build
+              run: pnpm ts:build
 
-            - name: Setup Python
-              uses: actions/setup-python@v5
+    python:
+        name: Python
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        defaults:
+            run:
+                working-directory: python
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
               with:
                   python-version: '3.13'
+            - uses: astral-sh/setup-uv@v6
+            - run: uv sync --group dev
+            - name: Typecheck
+              run: uv run poe typecheck
+            - name: Lint
+              run: uv run poe lint
+            - name: Format check
+              run: uv run poe format:check
+            - name: Test
+              run: uv run poe test
+            - name: Build
+              run: uv run poe build
 
-            - name: Setup uv
-              uses: astral-sh/setup-uv@v6
-
-            - name: Setup Rust toolchain
-              uses: dtolnay/rust-toolchain@stable
-
-            - name: Cache Rust build artifacts
-              uses: Swatinem/rust-cache@v2
+    rust:
+        name: Rust
+        runs-on: ubuntu-latest
+        timeout-minutes: 25
+        defaults:
+            run:
+                working-directory: rust/fetch
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
               with:
-                  workspaces: |
-                      rust/fetch -> rust/fetch/target
+                  components: clippy, rustfmt
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: rust/fetch -> rust/fetch/target
                   cache-on-failure: true
+            - name: Format check
+              run: cargo fmt --all -- --check
+            # --all-features throughout: the `otel` integration is optional, and
+            # a bare `cargo test` never compiles tests/trace_propagation_tests.rs
+            # (it is behind `#![cfg(feature = "otel")]`), reporting "0 passed; ok"
+            # for three real tests that were therefore invisible to CI.
+            - name: Lint
+              run: cargo clippy --all-targets --all-features -- -D warnings
+            - name: Test (default features)
+              run: cargo test
+            - name: Test (all features)
+              run: cargo test --all-features
+            - name: Build
+              run: cargo build --release
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
+    go:
+        name: Go
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        defaults:
+            run:
+                working-directory: go/fetch
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
               with:
                   go-version: '1.23'
                   cache-dependency-path: go/fetch/go.sum
+            - name: Format check
+              run: test -z "$(gofmt -l .)"
+            - name: Vet
+              run: go vet ./...
+            - name: Test
+              run: go test -v ./...
+            - name: Build
+              run: go build ./...
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+    dotnet:
+        name: .NET
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        defaults:
+            run:
+                working-directory: dotnet
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-dotnet@v4
               with:
                   dotnet-version: |
                       8.0.x
                       9.0.x
                       10.0.x
-
-            - name: Install dependencies
-              run: pnpm install
-
-            - name: Sync Python dependencies
-              run: uv sync --group dev
-              working-directory: python
-
-            - name: Restore .NET dependencies
-              run: dotnet restore SmooAI.Fetch.sln
-              working-directory: dotnet
-
-            - name: Version consistency
-              run: pnpm version:check
-
-            - name: Typecheck
-              run: pnpm typecheck
-
-            - name: Lint
-              run: pnpm lint
-
+            - run: dotnet restore SmooAI.Fetch.sln
             - name: Format check
-              run: pnpm format:check && pnpm python:format:check && pnpm rust:fmt:check && pnpm go:fmt:check && pnpm dotnet:format:check
-
+              run: dotnet format SmooAI.Fetch.sln --verify-no-changes
             - name: Test
-              run: pnpm test
-
+              run: dotnet test SmooAI.Fetch.sln -c Release --nologo
             - name: Build
-              run: pnpm build
+              run: dotnet build SmooAI.Fetch.sln -c Release --nologo
