@@ -1,5 +1,15 @@
 # @smooai/fetch
 
+## 3.6.0
+
+### Minor Changes
+
+- 193b1e8: The Go port gains a real response-validation entry point: `RequestOptions.Validate func(data any) []string`. Returning messages fails the request with a `*SchemaValidationError` carrying them, which `DefaultRetryOptions` already treats as non-retryable. Until now `SchemaValidationError` was a type the package defined, documented as "returned when response body validation fails", and never constructed — and the README's language matrix promised callers would get one. Go has no Standard Schema equivalent, so this is the seam rather than a bundled validator. Leaving `Validate` unset is behavior-identical.
+
+### Patch Changes
+
+- 932f253: The Rust crate `smooai-fetch` now uses rustls instead of native-tls. `reqwest`'s `default-tls` pulled in `openssl-sys`, which needs a system OpenSSL and its headers at build time — a cross-compile and container-image hazard for a library consumed across the platform. `openssl-sys` and `native-tls` are gone from the lockfile. `http2` and `charset` are re-enabled explicitly, because disabling reqwest's default features would otherwise have silently downgraded every consumer to HTTP/1.1.
+
 ## 3.5.1
 
 ### Patch Changes
