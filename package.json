@@ -112,7 +112,7 @@
         "go:fmt": "(cd go/fetch && gofmt -w .)",
         "go:fmt:check": "(cd go/fetch && test -z \"$(gofmt -l .)\")",
         "go:lint": "(cd go/fetch && go vet ./...)",
-        "go:test": "(cd go/fetch && go test -v ./...)",
+        "go:test": "(cd go/fetch && go test -count=1 -v ./...)",
         "dotnet:build": "(cd dotnet && dotnet build SmooAI.Fetch.sln -c Release --nologo)",
         "dotnet:test": "(cd dotnet && dotnet test SmooAI.Fetch.sln -c Release --nologo)",
         "dotnet:pack": "(cd dotnet && dotnet pack SmooAI.Fetch/SmooAI.Fetch.csproj -c Release --nologo -o ./artifacts)",
