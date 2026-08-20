@@ -53,12 +53,18 @@ impl SlidingWindowRateLimiter {
             timestamps.push_back(now);
             Ok(())
         } else {
-            // Calculate remaining time until the oldest request expires
+            // Calculate remaining time until the oldest request expires.
+            // The pruning loop above already dropped every expired timestamp, so
+            // `remaining` here is always > 0 — but `as_millis` TRUNCATES, so a
+            // sub-millisecond remainder reported 0. A caller that honors
+            // `remaining_ms` then retries immediately and spins on the boundary,
+            // and an error saying "0ms left" while refusing the request is a lie
+            // about its own state. Round up to the next whole millisecond.
             let oldest = timestamps.front().unwrap();
             let elapsed = now.duration_since(*oldest);
             let remaining = self.limit_period.saturating_sub(elapsed);
             Err(FetchError::RateLimit {
-                remaining_ms: remaining.as_millis() as u64,
+                remaining_ms: (remaining.as_millis() as u64).max(1),
             })
         }
     }
@@ -69,7 +75,9 @@ impl SlidingWindowRateLimiter {
             match self.try_acquire().await {
                 Ok(()) => return Ok(()),
                 Err(FetchError::RateLimit { remaining_ms }) => {
-                    tokio::time::sleep(Duration::from_millis(remaining_ms + 1)).await;
+                    // remaining_ms is already rounded up to a whole millisecond by
+                    // try_acquire, so this sleep always clears the window boundary.
+                    tokio::time::sleep(Duration::from_millis(remaining_ms)).await;
                 }
                 Err(e) => return Err(e),
             }
@@ -80,6 +88,26 @@ impl SlidingWindowRateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A rejection that reports "0ms remaining" while refusing the request is a
+    /// lie about the limiter's own state, and a caller honoring it spins hot on
+    /// the window boundary. `as_millis` truncates, so any sub-millisecond
+    /// remainder used to report exactly that.
+    #[tokio::test]
+    async fn rejection_never_reports_zero_remaining() {
+        // A 1ms window makes the sub-millisecond remainder the common case
+        // rather than a rare boundary hit.
+        let limiter = SlidingWindowRateLimiter::new(1, 1);
+        limiter.try_acquire().await.unwrap();
+        for _ in 0..200 {
+            if let Err(FetchError::RateLimit { remaining_ms }) = limiter.try_acquire().await {
+                assert!(
+                    remaining_ms > 0,
+                    "a rejection must report a positive wait, got {remaining_ms}"
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_rate_limiter_allows_within_limit() {
