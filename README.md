@@ -345,6 +345,14 @@ const user = await api('/users/123'); // Correlation ID sent as header
 // In Service B, the correlation ID is automatically extracted and logs are linked.
 ```
 
+### Credentials are redacted before they reach a log record
+
+Everything this client logs about a request — headers, query string, URL and body — is scrubbed of credential-bearing keys first, so an OAuth token exchange or a `Bearer` header does not land in CloudWatch in plaintext. Redaction is always on and applies only to the logged copy; the request on the wire is untouched.
+
+A key is redacted when its normalized form (lowercased, `-`/`_`/`.` stripped) contains `secret`, `password`, `passwd`, `token`, `apikey`, `authorization`, `credential`, `privatekey`, `assertion`, `cookie`, `session` or `signature`, or equals `auth`, `code`, `pwd` or `sig`. The cases are pinned in [`spec/redaction-corpus.json`](spec/redaction-corpus.json), which both the TypeScript and Rust test suites load. `client_id` is deliberately **not** redacted — it is public in OAuth and load-bearing when debugging.
+
+The Rust client redacts the URL it logs (userinfo password + query params); the Python, Go and .NET clients log nothing about a request, so they have nothing to redact.
+
 ### Debug production issues faster
 
 When something goes wrong, you have the complete story — initial request, each retry attempt, circuit-breaker state changes, and the final error with a full stack trace:

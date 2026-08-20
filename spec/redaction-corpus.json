@@ -1,0 +1,131 @@
+{
+    "$comment": "Shared credential-redaction corpus. Every language that has a logging sink for request data loads THIS file — do not hand-copy these cases into a language's test file. Today that is TypeScript (all six groups) and Rust (`url` and `query` only; Rust's single sink is the `url` field on the `Sending HTTP request` tracing event). Python, Go and .NET have no logging sink at all, so they implement nothing and load nothing; if a sink is ever added there, wire it to this corpus in the same PR.",
+    "redactedWith": "[REDACTED]",
+    "sensitiveKeys": {
+        "$comment": "A key is sensitive if its NORMALIZED form (lowercased, with '-', '_' and '.' stripped) contains one of `contains`, or equals one of `equals`. `equals` holds the roots that are too short or too common to substring-match without shredding unrelated fields.",
+        "contains": [
+            "secret",
+            "password",
+            "passwd",
+            "token",
+            "apikey",
+            "authorization",
+            "credential",
+            "privatekey",
+            "assertion",
+            "cookie",
+            "session",
+            "signature"
+        ],
+        "equals": ["auth", "code", "pwd", "sig"]
+    },
+    "cases": {
+        "headers": [
+            {
+                "name": "bearer authorization header",
+                "input": { "Authorization": "Bearer eyJhbGciOi.J9.sig", "Content-Type": "application/json" },
+                "expected": { "Authorization": "[REDACTED]", "Content-Type": "application/json" }
+            },
+            {
+                "name": "api key and cookie headers, any casing or separator",
+                "input": { "X-Api-Key": "sk_live_1", "x_api_key": "sk_live_2", "Cookie": "sid=abc", "set-cookie": "sid=abc; HttpOnly" },
+                "expected": { "X-Api-Key": "[REDACTED]", "x_api_key": "[REDACTED]", "Cookie": "[REDACTED]", "set-cookie": "[REDACTED]" }
+            },
+            {
+                "name": "vendor-prefixed session token header",
+                "input": { "x-amz-security-token": "IQoJb3", "X-Session-Id": "s-1" },
+                "expected": { "x-amz-security-token": "[REDACTED]", "X-Session-Id": "[REDACTED]" }
+            },
+            {
+                "name": "routine headers are left alone",
+                "input": { "Accept": "application/json", "User-Agent": "smooai-fetch", "X-Request-Id": "r-1" },
+                "expected": { "Accept": "application/json", "User-Agent": "smooai-fetch", "X-Request-Id": "r-1" }
+            }
+        ],
+        "query": [
+            { "name": "empty query", "input": "", "expected": "" },
+            { "name": "no sensitive params", "input": "?page=2&sort=asc", "expected": "?page=2&sort=asc" },
+            { "name": "api key in query", "input": "?api_key=sk_live_x&page=2", "expected": "?api_key=[REDACTED]&page=2" },
+            {
+                "name": "oauth code and token, base64 padding in value",
+                "input": "?code=abc%3D%3D&access_token=ya29.a0%2Bx&state=s1",
+                "expected": "?code=[REDACTED]&access_token=[REDACTED]&state=s1"
+            },
+            { "name": "valueless param is untouched", "input": "?debug&api_key=x", "expected": "?debug&api_key=[REDACTED]" }
+        ],
+        "url": [
+            { "name": "no query", "input": "https://api.example.com/v1/things", "expected": "https://api.example.com/v1/things" },
+            {
+                "name": "secret in query",
+                "input": "https://api.example.com/v1/things?api_key=sk_live_x&page=2",
+                "expected": "https://api.example.com/v1/things?api_key=[REDACTED]&page=2"
+            },
+            {
+                "name": "password in userinfo",
+                "input": "https://alice:hunter2@api.example.com/v1/things",
+                "expected": "https://alice:[REDACTED]@api.example.com/v1/things"
+            },
+            {
+                "name": "fragment is preserved and not scanned as query",
+                "input": "https://api.example.com/p?token=t#section=1",
+                "expected": "https://api.example.com/p?token=[REDACTED]#section=1"
+            },
+            {
+                "name": "relative url with a secret",
+                "input": "/v1/things?client_secret=shh",
+                "expected": "/v1/things?client_secret=[REDACTED]"
+            },
+            {
+                "name": "userinfo without a password is untouched",
+                "input": "https://alice@api.example.com/v1",
+                "expected": "https://alice@api.example.com/v1"
+            }
+        ],
+        "form": [
+            {
+                "name": "oauth client_credentials token exchange",
+                "input": "grant_type=client_credentials&client_id=abc-123&client_secret=sk_EL%2BPixKPBBe%3D",
+                "expected": "grant_type=client_credentials&client_id=abc-123&client_secret=[REDACTED]"
+            },
+            {
+                "name": "client_id is deliberately NOT redacted — it is public in OAuth and load-bearing for debugging",
+                "input": "client_id=abc-123&scope=read",
+                "expected": "client_id=abc-123&scope=read"
+            },
+            {
+                "name": "refresh token grant",
+                "input": "grant_type=refresh_token&refresh_token=1%2F%2F0g&client_assertion=jwt",
+                "expected": "grant_type=refresh_token&refresh_token=[REDACTED]&client_assertion=[REDACTED]"
+            },
+            { "name": "no sensitive params", "input": "a=1&b=2", "expected": "a=1&b=2" },
+            {
+                "name": "value containing = survives (split on the FIRST = only)",
+                "input": "state=a%3Db&password=p%3D%3D",
+                "expected": "state=a%3Db&password=[REDACTED]"
+            },
+            {
+                "name": "prose is not a form body — whitespace means leave it alone rather than mangle it",
+                "input": "upstream said: token=abc & then it failed",
+                "expected": "upstream said: token=abc & then it failed"
+            }
+        ],
+        "json": [
+            {
+                "name": "secret at the top level",
+                "input": "{\"client_secret\":\"sk_x\",\"a\":1}",
+                "expected": "{\"client_secret\":\"[REDACTED]\",\"a\":1}"
+            },
+            {
+                "name": "secret nested in an object and an array",
+                "input": "{\"outer\":{\"password\":\"p\"},\"list\":[{\"apiKey\":\"k\"},{\"ok\":true}]}",
+                "expected": "{\"outer\":{\"password\":\"[REDACTED]\"},\"list\":[{\"apiKey\":\"[REDACTED]\"},{\"ok\":true}]}"
+            },
+            { "name": "nothing sensitive", "input": "{\"a\":1,\"b\":[2,3]}", "expected": "{\"a\":1,\"b\":[2,3]}" },
+            {
+                "name": "a sensitive VALUE under a safe key is not detectable and is left as-is",
+                "input": "{\"note\":\"my password is hunter2\"}",
+                "expected": "{\"note\":\"my password is hunter2\"}"
+            }
+        ]
+    }
+}

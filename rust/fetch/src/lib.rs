@@ -49,6 +49,7 @@ pub mod defaults;
 pub mod error;
 pub mod hooks;
 pub mod rate_limit;
+mod redact;
 pub mod response;
 pub mod retry;
 pub mod timeout;
