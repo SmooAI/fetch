@@ -1,6 +1,6 @@
 [package]
 name = "smooai-fetch"
-version = "3.6.1"
+version = "3.6.2"
 edition = "2021"
 description = "A resilient HTTP fetch client with retries, timeouts, rate limiting, and circuit breaking."
 license = "MIT"
