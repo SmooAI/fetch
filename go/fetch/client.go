@@ -70,6 +70,7 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 	timeoutOpts := client.timeout
 	var hooks *LifecycleHooks
 	var extraHeaders http.Header
+	var validate func(data any) []string
 
 	if opts != nil {
 		if opts.Retry != nil {
@@ -84,6 +85,7 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 		if opts.Headers != nil {
 			extraHeaders = opts.Headers
 		}
+		validate = opts.Validate
 	}
 
 	if hooks == nil {
@@ -92,7 +94,7 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 
 	// Build the core request-execute function
 	doRequest := func(ctx context.Context) (*FetchResponse[T], error) {
-		return executeHTTPRequest[T](ctx, client, method, url, body, extraHeaders, hooks)
+		return executeHTTPRequest[T](ctx, client, method, url, body, extraHeaders, hooks, validate)
 	}
 
 	// Wrap with timeout if configured
@@ -202,6 +204,7 @@ func executeHTTPRequest[T any](
 	body any,
 	extraHeaders http.Header,
 	hooks *LifecycleHooks,
+	validate func(data any) []string,
 ) (*FetchResponse[T], error) {
 	// Prepare body
 	var bodyReader io.Reader
@@ -350,6 +353,23 @@ func executeHTTPRequest[T any](
 			}
 		}
 		return nil, httpErr
+	}
+
+	// Validate the decoded body before the caller ever sees it. Until this
+	// existed, SchemaValidationError was a type the library defined, documented
+	// as "returned when response body validation fails", and never returned --
+	// and DefaultRetryOptions carried a dead branch for it.
+	if validate != nil && isJSON {
+		if messages := validate(any(fetchResp.Data)); len(messages) > 0 {
+			validationErr := &SchemaValidationError{Errors: messages}
+			if hooks != nil && hooks.PostResponseError != nil {
+				anyResp := toAnyResponse(fetchResp)
+				if replacementErr := hooks.PostResponseError(requestURL, req, validationErr, anyResp); replacementErr != nil {
+					return nil, replacementErr
+				}
+			}
+			return nil, validationErr
+		}
 	}
 
 	// Apply post-response success hook

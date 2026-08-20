@@ -160,4 +160,14 @@ type RequestOptions struct {
 	Hooks *LifecycleHooks
 	// Headers are additional headers to include in the request.
 	Headers http.Header
+	// Validate, when set, is called with the decoded body of a successful JSON
+	// response. Returning a non-empty slice of messages fails the request with a
+	// *SchemaValidationError carrying them, which DefaultRetryOptions treats as
+	// non-retryable — a body that does not match its contract will not match on
+	// a second attempt either.
+	//
+	// Go has no Standard Schema equivalent, so this is the seam rather than a
+	// bundled validator: plug in go-playground/validator, a hand-written check,
+	// or anything else that reduces to "here is what is wrong".
+	Validate func(data any) []string
 }
