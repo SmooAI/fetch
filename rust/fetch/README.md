@@ -72,12 +72,12 @@ or via cargo:
 cargo add smooai-fetch
 ```
 
-| Language   | Package                                                        | Install                                   |
-| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
-| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
-| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
-| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
+| Language   | Package                                                        | Install                                      |
+| ---------- | -------------------------------------------------------------- | -------------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                     |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                   |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                     |
+| Go         | `github.com/SmooAI/fetch/go/fetch/v3`                          | `go get github.com/SmooAI/fetch/go/fetch/v3` |
 
 ## The Power of Resilient Fetching
 
@@ -370,7 +370,7 @@ match client.fetch("https://api.example.com/data", init).await {
 
 - [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) - TypeScript/JavaScript version
 - [`smooai-fetch` (Python)](https://pypi.org/project/smooai-fetch/) - Python version
-- `github.com/SmooAI/fetch/go/fetch` - Go version
+- `github.com/SmooAI/fetch/go/fetch/v3` - Go version
 
 ## Development
 

@@ -1,4 +1,4 @@
-module github.com/SmooAI/fetch/go/fetch
+module github.com/SmooAI/fetch/go/fetch/v3
 
 go 1.23.0
 

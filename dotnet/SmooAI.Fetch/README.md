@@ -118,7 +118,7 @@ var user = await fetch.GetAsync<User>("/users/me", cancellationToken: cts.Token)
 - [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) — TypeScript / Node
 - [`smooai-fetch`](https://crates.io/crates/smooai-fetch) — Rust
 - [`smooai-fetch`](https://pypi.org/project/smooai-fetch/) — Python
-- [`github.com/SmooAI/fetch/go/fetch`](https://github.com/SmooAI/fetch/tree/main/go/fetch) — Go
+- [`github.com/SmooAI/fetch/go/fetch/v3`](https://github.com/SmooAI/fetch/tree/main/go/fetch) — Go
 
 ## License
 
