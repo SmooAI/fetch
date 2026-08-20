@@ -47,7 +47,12 @@ build = "uv build --wheel --sdist"
 "install-dev" = "uv sync --group dev"
 
 [tool.poe.tasks.publish]
-sequence = [{ cmd = "uv build --wheel --sdist" }, { cmd = "uv publish" }]
+# --check-url: skip files already on PyPI instead of failing, so re-running a
+# release after a partial failure is a no-op rather than an error.
+sequence = [
+    { cmd = "uv build --wheel --sdist" },
+    { cmd = "uv publish --check-url https://pypi.org/simple/smooai-fetch/" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

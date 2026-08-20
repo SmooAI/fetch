@@ -136,8 +136,13 @@ jobs:
               run: test -z "$(gofmt -l .)"
             - name: Vet
               run: go vet ./...
+            # -count=1 disables the test cache. Go's cache does NOT invalidate on a
+            # fixture read from OUTSIDE the package directory, and this suite loads
+            # spec/connect-timeout-corpus.json from the repo root — so a corrupted
+            # corpus returned "ok (cached)" and the lane proved nothing. Verified by
+            # hand: corrupt the corpus, `go test` says cached/ok, `-count=1` fails.
             - name: Test
-              run: go test -v ./...
+              run: go test -count=1 -v ./...
             - name: Build
               run: go build ./...
 

@@ -10,6 +10,15 @@ env:
     CI: true
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+# The "Auto-Merge Changeset PR" step below ends with `gh workflow run release.yml`
+# AND merging that PR is itself a push to main, so two runs fire on the same
+# commit. Both then run `ci:publish`; the loser dies with
+# "E403 You cannot publish over the previously published versions", leaving a red
+# Release run for a release that actually succeeded. Serialise them instead.
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
 jobs:
     version:
         timeout-minutes: 30
@@ -113,7 +122,7 @@ jobs:
                   NPM_TOKEN: ${{ secrets.SMOOAI_NPM_TOKEN }}
 
             - name: Publish smooai-fetch to PyPI
-              if: steps.changesets.outputs.published == 'true'
+              if: steps.changesets.outputs.hasChangesets == 'false'
               working-directory: python
               env:
                   UV_PUBLISH_TOKEN: ${{ secrets.SMOOAI_PYPI_TOKEN }}
@@ -125,29 +134,40 @@ jobs:
                   uv run poe publish
 
             - name: Publish smooai-fetch to crates.io
-              if: steps.changesets.outputs.published == 'true'
+              if: steps.changesets.outputs.hasChangesets == 'false'
               # No --allow-dirty: sync-versions.mjs now runs during `changeset
               # version`, so the manifests are already committed and the tree is
               # clean here. If this ever fails on dirt, something upstream is
               # rewriting files during the release — fix that, don't re-add the flag.
-              run: cargo publish --locked --manifest-path rust/fetch/Cargo.toml
+              run: |
+                  # Tolerate ONLY "already exists" so a rerun is a no-op; any other
+                  # failure still reds the run.
+                  if ! out=$(cargo publish --locked --manifest-path rust/fetch/Cargo.toml 2>&1); then
+                      echo "$out"
+                      echo "$out" | grep -q 'already exists' || exit 1
+                      echo "Version already on crates.io — nothing to do."
+                  fi
               env:
                   CARGO_REGISTRY_TOKEN: ${{ secrets.SMOOAI_CARGO_REGISTRY_TOKEN }}
 
             - name: Tag and publish Go module
-              if: steps.changesets.outputs.published == 'true'
+              if: steps.changesets.outputs.hasChangesets == 'false'
               run: |
                   VERSION=$(node -p "require('./package.json').version")
                   TAG="go/fetch/v${VERSION}"
                   echo "Creating Go module tag: ${TAG}"
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git tag "${TAG}"
-                  git push origin "${TAG}"
-                  echo "Go module tagged and pushed: ${TAG}"
+                  if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+                      echo "Tag ${TAG} already exists — nothing to do."
+                  else
+                      git tag "${TAG}"
+                      git push origin "${TAG}"
+                      echo "Go module tagged and pushed: ${TAG}"
+                  fi
 
             - name: Pack and publish SmooAI.Fetch to NuGet
-              if: steps.changesets.outputs.published == 'true'
+              if: steps.changesets.outputs.hasChangesets == 'false'
               run: |
                   dotnet pack SmooAI.Fetch/SmooAI.Fetch.csproj -c Release --nologo -o ./artifacts
                   dotnet nuget push "./artifacts/*.nupkg" \
@@ -157,6 +177,29 @@ jobs:
               working-directory: dotnet
               env:
                   NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+            - name: Verify the release actually landed
+              if: steps.changesets.outputs.hasChangesets == 'false'
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "Verifying ${VERSION} is live on every registry..."
+                  fail=0
+                  npm view "@smooai/fetch@${VERSION}" version >/dev/null 2>&1 \
+                      || { echo "::error::npm has no ${VERSION}"; fail=1; }
+                  curl -sfI "https://pypi.org/pypi/smooai-fetch/${VERSION}/json" >/dev/null \
+                      || { echo "::error::PyPI has no ${VERSION}"; fail=1; }
+                  curl -sf -H 'User-Agent: smooai-release (brent@smoo.ai)' \
+                      "https://crates.io/api/v1/crates/smooai-fetch/${VERSION}" >/dev/null \
+                      || { echo "::error::crates.io has no ${VERSION}"; fail=1; }
+                  git ls-remote --exit-code --tags origin "refs/tags/go/fetch/v${VERSION}" >/dev/null 2>&1 \
+                      || { echo "::error::no go/fetch/v${VERSION} tag"; fail=1; }
+                  # NuGet is deliberately not checked: its validation pipeline lags
+                  # by minutes, so asserting on it here would flake.
+                  if [ "$fail" -ne 0 ]; then
+                      echo "::error::Release reported success but did not reach every registry. Re-run this workflow — the publish steps are idempotent."
+                      exit 1
+                  fi
+                  echo "All registries carry ${VERSION}."
 
             - name: Auto-Merge Changeset PR
               run: |
