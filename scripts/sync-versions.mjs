@@ -47,6 +47,13 @@ const files = [
         replacement: `version = "${version}"`,
     },
     {
+        // `smooai_fetch.__version__` is a plain literal, not read from package
+        // metadata — so PyPI could ship 3.4.0 while the module reported 2.1.2.
+        path: join(rootDir, 'python', 'src', 'smooai_fetch', '__init__.py'),
+        pattern: /^__version__ = ".*"$/m,
+        replacement: `__version__ = "${version}"`,
+    },
+    {
         path: join(rootDir, 'rust', 'fetch', 'Cargo.toml'),
         pattern: /^version = ".*"$/m,
         replacement: `version = "${version}"`,
