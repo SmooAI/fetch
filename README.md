@@ -294,6 +294,18 @@ Every port carries the shared core: **retries with backoff + jitter, `Retry-Afte
 
 Where a port leans on a battle-tested ecosystem library (mollitia, Polly), it says so above; the others implement retry/breaker/rate-limit logic natively, with each port's own test suite covering the shared behaviors.
 
+### Credential redaction is scoped to what each port actually logs
+
+| Language   | What it logs about a request                                                                | Redaction                                   |
+| ---------- | ------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| TypeScript | method, host, path, query string, **headers**, **request body**, and the URL in the message | full — headers, query, URL and body         |
+| Rust       | method and URL, on one `tracing::debug!` event                                              | URL only (userinfo password + query params) |
+| Python     | nothing                                                                                     | n/a — no logging sink                       |
+| Go         | nothing                                                                                     | n/a — no logging sink                       |
+| .NET       | nothing (an `ILogger<SmooFetch>` is held for DI but never called)                           | n/a — no logging sink                       |
+
+**This is not a parity gap.** Redaction exists in exactly the two ports that have something to redact. Adding a scrubber to Python, Go or .NET would be code no call site reaches — which reads as a guarantee while guaranteeing nothing. The shared cases in [`spec/redaction-corpus.json`](spec/redaction-corpus.json) are loaded by the TypeScript and Rust suites, and that file states the rule for anyone extending it: **if a logging sink is ever added to another port, wire it to this corpus in the same PR.**
+
 ---
 
 ## 📖 Smart defaults
