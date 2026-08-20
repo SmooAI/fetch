@@ -1,4 +1,3 @@
-import { faker } from '@faker-js/faker';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import merge from 'lodash.merge';
 import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
@@ -406,8 +405,13 @@ function prepareDefaultOptions<Schema extends StandardSchemaV1 = never>(options?
     return merge({}, DEFAULTS, options);
 }
 
+// Mollitia modules need a name unique within the process; these are labels that
+// show up in logs, nothing more. This used to be `${prefix}-${faker.color.human()}-
+// ${faker.animal.type()}`, which made @faker-js/faker — a test-data generator —
+// a RUNTIME dependency of a published HTTP client, for two cosmetic words.
+let moduleSequence = 0;
 function generateRandomName(prefix: string): string {
-    return `${prefix}-${faker.color.human()}-${faker.animal.type()}`;
+    return `${prefix}-${++moduleSequence}`;
 }
 
 function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options: RequestOptions<Schema>): Module[] {
