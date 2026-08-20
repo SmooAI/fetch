@@ -29,20 +29,26 @@ async fn test_rate_limit_retry_recovers() {
         .mount(&mock_server)
         .await;
 
+    // The retry budget MUST exceed the rate-limit window, or this test is a race
+    // against how long the first HTTP round trip took: 3 attempts x 10ms gave
+    // 30ms of retries against a 100ms window, so it only passed when wiremock
+    // happened to be slow enough to burn the other 70ms itself. 8 x 40ms = 320ms
+    // comfortably covers the window however fast the machine is.
+    const WINDOW_MS: u64 = 100;
     let rl_retry = RetryOptions {
-        attempts: 3,
-        initial_interval_ms: 10,
+        attempts: 8,
+        initial_interval_ms: 40,
         factor: 1.0,
         jitter_adjustment: 0.0,
-        max_interval_ms: Some(50),
+        max_interval_ms: Some(40),
         fast_first: true,
         on_rejection: None,
     };
 
-    // limit=1 over a 100ms window. The first request burns the slot.
+    // limit=1 over the window. The first request burns the slot.
     let client = FetchBuilder::<TestData>::new()
         .without_retry()
-        .with_rate_limit(1, 100)
+        .with_rate_limit(1, WINDOW_MS)
         .with_rate_limit_retry(rl_retry)
         .build();
 
@@ -57,13 +63,16 @@ async fn test_rate_limit_retry_recovers() {
     assert!(first.ok);
 
     // The next request should be rate-limited, then retry once the window
-    // expires (≤100ms) and succeed.
+    // expires and succeed.
     let start = Instant::now();
     let second = client.fetch(&url, make()).await.unwrap();
     let elapsed = start.elapsed();
     assert!(second.ok);
-    // Should have waited *some* amount of time but well under 1s.
-    assert!(elapsed.as_millis() < 1_000);
+    // Bounded above by the retry budget, not by the wall clock in general.
+    assert!(
+        elapsed.as_millis() < 1_000,
+        "rate-limit retry took {elapsed:?}, expected it to recover within the window"
+    );
 }
 
 /// When the rate-limit retry budget is exhausted, the caller gets a `Retry`
