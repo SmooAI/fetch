@@ -64,6 +64,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             fetch_options: FetchOptions {
                 timeout: Some(defaults::default_timeout_options()),
                 retry: Some(defaults::default_retry_options()),
+                connect_timeout_ms: None,
             },
             container_options: FetchContainerOptions::default(),
             default_init: None,
@@ -82,6 +83,21 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
     /// Set the request timeout in milliseconds.
     pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.fetch_options.timeout = Some(TimeoutOptions { timeout_ms });
+        self
+    }
+
+    /// Set the connect timeout in milliseconds.
+    ///
+    /// This bounds only the connection-establishment phase. When set, the
+    /// underlying reqwest client is built with `connect_timeout(...)`, so a
+    /// connect that never completes (e.g. a black-holed SYN to a dead pod IP
+    /// still lingering in a ClusterIP's iptables) fails in ~this window and the
+    /// configured retry can land on a live endpoint — instead of stalling until
+    /// the whole-request timeout ([`with_timeout`]). Slow-but-alive handlers are
+    /// unaffected. Leaving it unset preserves the previous no-connect-timeout
+    /// behavior.
+    pub fn with_connect_timeout(mut self, ms: u64) -> Self {
+        self.fetch_options.connect_timeout_ms = Some(ms);
         self
     }
 

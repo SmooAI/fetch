@@ -100,7 +100,14 @@ public sealed class SmooFetch
                 "SmooFetchOptions.RequireHttpClientFactory is true — register via AddSmooFetch and resolve from DI instead of Create().");
         }
 
-        var handler = new HttpClientHandler();
+        // SocketsHttpHandler so we can honor SmooFetchOptions.ConnectTimeout when set.
+        // Left unset (null) → handler default (Infinite), i.e. behavior-identical to before.
+        var handler = new SocketsHttpHandler();
+        if (options.ConnectTimeout is { } connectTimeout)
+        {
+            handler.ConnectTimeout = connectTimeout;
+        }
+
         var client = new HttpClient(handler) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         return new SmooFetch(client, ownsHttpClient: true, options, logger: null);
     }
@@ -108,6 +115,9 @@ public sealed class SmooFetch
     internal static SmooFetch CreateFromFactory(HttpClient client, SmooFetchOptions options, ILogger<SmooFetch> logger)
     {
         // HttpClientFactory-managed clients must not have their Timeout set (we enforce it per-request via CTS).
+        // Caveat: SmooFetchOptions.ConnectTimeout is NOT applied here — the factory owns the handler.
+        // Configure the connect timeout on the SocketsHttpHandler at DI registration
+        // (e.g. .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectTimeout = ... })).
         client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
         return new SmooFetch(client, ownsHttpClient: false, options, logger);
     }

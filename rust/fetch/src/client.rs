@@ -1,6 +1,7 @@
 //! Core fetch client with full pipeline: hooks, timeout, retry, rate limit, circuit breaker.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 use tracing;
@@ -171,8 +172,14 @@ fn inject_trace_context(
 async fn do_single_request<T: DeserializeOwned>(
     url: &str,
     init: &RequestInit,
+    connect_timeout_ms: Option<u64>,
 ) -> Result<FetchResponse<T>, FetchError> {
-    let client = reqwest::Client::new();
+    let client = match connect_timeout_ms {
+        Some(ms) => reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(ms))
+            .build()?,
+        None => reqwest::Client::new(),
+    };
 
     let mut request_builder = client.request(init.method.to_reqwest(), url);
 
@@ -322,11 +329,18 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         .as_ref()
         .map(|t| t.timeout_ms)
         .unwrap_or(defaults::DEFAULT_TIMEOUT_MS);
+    let connect_timeout_ms = opts.connect_timeout_ms;
 
     let operation = |_attempt: u32| {
         let url = url_clone.clone();
         let init = init_clone.clone();
-        async move { timeout::with_timeout(timeout_ms, do_single_request::<T>(&url, &init)).await }
+        async move {
+            timeout::with_timeout(
+                timeout_ms,
+                do_single_request::<T>(&url, &init, connect_timeout_ms),
+            )
+            .await
+        }
     };
 
     // 4. Execute with retry (or just once if no retry options)
@@ -334,7 +348,11 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         retry::execute_with_retry(retry_opts, operation).await
     } else {
         // No retry, just execute once with timeout
-        timeout::with_timeout(timeout_ms, do_single_request::<T>(&url, &init)).await
+        timeout::with_timeout(
+            timeout_ms,
+            do_single_request::<T>(&url, &init, connect_timeout_ms),
+        )
+        .await
     };
 
     // Record success/failure with circuit breaker

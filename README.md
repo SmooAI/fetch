@@ -304,6 +304,8 @@ Out of the box, `@smooai/fetch` is configured for the real world:
 
 **Timeout protection** — 10-second default timeout, configurable per request, so requests never hang indefinitely.
 
+**Connect timeout (opt-in)** — `connectTimeoutMs` / `withConnectTimeout` bounds only the connection-establishment phase, in all five ports. A black-holed connect then fails in ~that window and retry lands on a live endpoint, instead of burning the whole-request timeout on a dead one; slow-but-alive handlers are unaffected. Off by default. In TypeScript it needs the optional peer dependency `undici` and applies to Node only.
+
 **Rate-limit handling** — respects `Retry-After` headers and backs off automatically on 429 responses.
 
 ### Graceful degradation
