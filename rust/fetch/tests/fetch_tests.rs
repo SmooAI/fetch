@@ -34,6 +34,7 @@ async fn test_basic_get_request() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -78,6 +79,7 @@ async fn test_basic_post_request_with_body() {
         body: Some(r#"{"key":"value"}"#.to_string()),
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -117,6 +119,7 @@ async fn test_failed_request_404() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -163,6 +166,7 @@ async fn test_error_response_with_type_code_message() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -210,6 +214,7 @@ async fn test_non_json_response() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -251,6 +256,7 @@ async fn test_request_with_custom_headers() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -284,6 +290,7 @@ async fn test_schema_validation_error_on_type_mismatch() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -321,6 +328,7 @@ async fn test_default_method_is_get() {
     let url = format!("{}/default-method", mock_server.uri());
     let init = RequestInit::default();
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };

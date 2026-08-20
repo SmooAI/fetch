@@ -141,6 +141,15 @@ class TimeoutOptions:
     timeout_ms: float = 30000
     """Timeout duration in milliseconds."""
 
+    connect_timeout_ms: float | None = None
+    """Optional bounded connect-phase timeout in milliseconds.
+
+    When set, only the connect phase is capped at this value while the remaining
+    phases keep `timeout_ms`. Fails fast on black-holed connects (dead pod IPs
+    lingering in a ClusterIP's iptables) instead of stalling until the whole
+    timeout. Default None leaves behavior unchanged. Mirrors the Rust
+    `connect_timeout_ms` (SMOODEV-2513 / fetch#88)."""
+
 
 @dataclass
 class RateLimitOptions:

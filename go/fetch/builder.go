@@ -11,6 +11,7 @@ type ClientBuilder struct {
 	baseHeaders        http.Header
 	retryOpts          *RetryOptions
 	timeoutOpts        *TimeoutOptions
+	connectTimeout     time.Duration
 	rateLimitOpts      *RateLimitOptions
 	rateLimitRetryOpts *RateLimitRetryOptions
 	circuitBreakerOpts *CircuitBreakerOptions
@@ -45,6 +46,22 @@ func (b *ClientBuilder) WithBaseHeaders(headers http.Header) *ClientBuilder {
 // WithTimeout sets the request timeout duration.
 func (b *ClientBuilder) WithTimeout(timeout time.Duration) *ClientBuilder {
 	b.timeoutOpts = &TimeoutOptions{Timeout: timeout}
+	return b
+}
+
+// WithConnectTimeout bounds only the connection-establishment phase, separate
+// from the whole-request WithTimeout. When set (> 0), the SDK-constructed
+// *http.Client uses an *http.Transport (cloned from the default, so all other
+// settings are preserved) whose dialer times out after d. A black-holed connect
+// then fails in ~d and the configured retry can land on a live endpoint,
+// instead of stalling until the whole-request timeout. Leaving it unset (0)
+// preserves the previous no-connect-timeout behavior byte-for-byte.
+//
+// Note: if a caller-provided *http.Client is set via WithHTTPClient, that
+// client's transport is left untouched — the connect timeout only applies to
+// the transport this SDK constructs.
+func (b *ClientBuilder) WithConnectTimeout(d time.Duration) *ClientBuilder {
+	b.connectTimeout = d
 	return b
 }
 
@@ -156,6 +173,7 @@ func (b *ClientBuilder) Build() *Client {
 		baseHeaders:    b.baseHeaders,
 		retry:          b.retryOpts,
 		timeout:        b.timeoutOpts,
+		connectTimeout: b.connectTimeout,
 		rateLimitRetry: b.rateLimitRetryOpts,
 		hooks:          b.hooks,
 		authProvider:   b.authProvider,
@@ -167,6 +185,11 @@ func (b *ClientBuilder) Build() *Client {
 
 	if c.httpClient == nil {
 		c.httpClient = &http.Client{}
+		// Only bound the connect phase on the transport this SDK constructs;
+		// a caller-provided *http.Client (via WithHTTPClient) is left untouched.
+		if b.connectTimeout > 0 {
+			c.httpClient.Transport = transportWithConnectTimeout(b.connectTimeout)
+		}
 	}
 
 	if c.baseHeaders == nil {

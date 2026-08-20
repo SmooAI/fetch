@@ -29,6 +29,7 @@ async fn test_request_completes_before_timeout() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
         retry: None,
     };
@@ -63,6 +64,7 @@ async fn test_request_times_out() {
         ..Default::default()
     };
     let options = FetchOptions {
+        connect_timeout_ms: None,
         timeout: Some(TimeoutOptions { timeout_ms: 200 }),
         retry: None,
     };

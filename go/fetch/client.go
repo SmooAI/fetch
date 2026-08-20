@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -22,12 +23,25 @@ type Client struct {
 	baseHeaders    http.Header
 	retry          *RetryOptions
 	timeout        *TimeoutOptions
+	connectTimeout time.Duration
 	rateLimiter    *SlidingWindowRateLimiter
 	rateLimitRetry *RateLimitRetryOptions
 	circuitBreaker *CircuitBreaker
 	hooks          *LifecycleHooks
 	authProvider   AuthTokenProvider
 	authScheme     string
+}
+
+// transportWithConnectTimeout clones the default transport (preserving proxy,
+// TLS, and keep-alive settings) and bounds only the connection-establishment
+// phase via the dialer's Timeout. A connect that never completes (e.g. a
+// black-holed SYN to a dead pod IP still lingering in a ClusterIP's iptables)
+// then fails in ~connectTimeout instead of stalling until the whole-request
+// timeout. Slow-but-alive handlers are unaffected.
+func transportWithConnectTimeout(connectTimeout time.Duration) *http.Transport {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DialContext = (&net.Dialer{Timeout: connectTimeout}).DialContext
+	return tr
 }
 
 // NewClient creates a new Client with default settings (retry + timeout).

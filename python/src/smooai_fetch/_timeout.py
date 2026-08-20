@@ -17,4 +17,6 @@ def create_timeout(options: TimeoutOptions) -> httpx.Timeout:
         An httpx.Timeout configured with the specified timeout in seconds.
     """
     timeout_seconds = options.timeout_ms / 1000.0
-    return httpx.Timeout(timeout_seconds)
+    if options.connect_timeout_ms is None:
+        return httpx.Timeout(timeout_seconds)
+    return httpx.Timeout(timeout_seconds, connect=options.connect_timeout_ms / 1000.0)

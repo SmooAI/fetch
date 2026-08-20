@@ -23,4 +23,10 @@
     <ProjectReference Include="..\SmooAI.Fetch\SmooAI.Fetch.csproj" />
   </ItemGroup>
 
+  <!-- Cross-language test fixtures live at the repo root and are loaded by every
+       port's suite. Copy rather than hand-copying the values into the test. -->
+  <ItemGroup>
+    <Content Include="..\..\spec\connect-timeout-corpus.json" Link="connect-timeout-corpus.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

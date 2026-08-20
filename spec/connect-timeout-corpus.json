@@ -1,0 +1,10 @@
+{
+    "$comment": "Shared parameters for the connect-timeout regression test, loaded by all five ports — do not inline these numbers into a language's test file. The behavior under test is timing, not an input/output mapping, so what has to stay in lockstep is the knobs: change the ceiling in one language only and that port silently stops catching the regression the other four still catch.",
+    "$regression": "SMOODEV-2498 / SMOODEV-2513. api-prime's ~16s stalls were fresh SYNs to dead pod IPs still lingering in a ClusterIP's iptables. Without a connect timeout the client waits the whole-request timeout; with one it fails in ~the connect window and the retry lands on a live endpoint.",
+    "blackHoleUrl": "http://10.255.255.1:80/anything",
+    "$blackHoleUrlNote": "Non-routable RFC1918 address with (almost certainly) no host answering, so the SYN is dropped and the connect never establishes.",
+    "connectTimeoutMs": 500,
+    "wholeRequestTimeoutMs": 5000,
+    "maxElapsedMs": 3000,
+    "$maxElapsedMsNote": "Between connectTimeoutMs and wholeRequestTimeoutMs. If the connect timeout is NOT honored the request runs for wholeRequestTimeoutMs and blows this ceiling; the gap on either side absorbs CI jitter."
+}

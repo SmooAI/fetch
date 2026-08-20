@@ -1,5 +1,9 @@
 """Tests for timeout functionality."""
 
+import json
+import time
+from pathlib import Path
+
 import httpx
 import pytest
 import respx
@@ -77,3 +81,31 @@ async def test_connect_timeout():
 
     with pytest.raises(FetchTimeoutError):
         await fetch(URL, options)
+
+
+async def test_connect_timeout_fails_fast_on_black_hole():
+    """A bounded connect timeout fails fast on a black-holed connect instead of
+    stalling until the (much larger) whole-request timeout.
+
+    Knobs come from spec/connect-timeout-corpus.json, shared with the other four
+    ports -- see the corpus for why they are not inlined here.
+    """
+    corpus = json.loads((Path(__file__).parents[2] / "spec" / "connect-timeout-corpus.json").read_text())
+    options = FetchOptions(
+        timeout=TimeoutOptions(
+            timeout_ms=corpus["wholeRequestTimeoutMs"],
+            connect_timeout_ms=corpus["connectTimeoutMs"],
+        ),
+        retry=RetryOptions(attempts=0),
+    )
+
+    start = time.monotonic()
+    with pytest.raises(FetchTimeoutError):
+        await fetch(corpus["blackHoleUrl"], options)
+    elapsed_ms = (time.monotonic() - start) * 1000
+
+    assert elapsed_ms < corpus["maxElapsedMs"], (
+        f"connect timeout did not fire fast: elapsed {elapsed_ms:.0f}ms "
+        f"(connect was {corpus['connectTimeoutMs']}ms, whole timeout "
+        f"{corpus['wholeRequestTimeoutMs']}ms)"
+    )
