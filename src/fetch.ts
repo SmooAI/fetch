@@ -5,6 +5,7 @@ import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError,
 import { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
 import { handleSchemaValidation, HumanReadableSchemaError } from '@smooai/utils/validation/standardSchema';
 import { contextLogger } from './logger';
+import { redactBody, redactHeaders, redactQueryString, redactUrl } from './redact';
 
 export { RatelimitError, TimeoutError } from 'mollitia';
 export * from 'mollitia';
@@ -369,6 +370,9 @@ function mergeHeadersWithContext(headersInit?: HeadersInit): HeadersInit {
     return newHeadersInit;
 }
 
+// Both helpers below feed logger payloads only — never the outgoing request —
+// so they redact credentials in place. `@smooai/logger` does no redaction of its
+// own, so if it isn't scrubbed here it reaches CloudWatch in plaintext.
 function getHeadersObject(headers: Headers | Record<string, string> | undefined): Record<string, string> {
     if (!headers) return {};
     if (headers instanceof Headers) {
@@ -376,16 +380,13 @@ function getHeadersObject(headers: Headers | Record<string, string> | undefined)
         headers.forEach((value, key) => {
             result[key] = value;
         });
-        return result;
+        return redactHeaders(result);
     }
-    return headers;
+    return redactHeaders(headers);
 }
 
 function getRequestBody(body: any): string | undefined {
-    if (!body) return undefined;
-    if (typeof body === 'string') return body;
-    if (typeof body === 'object') return JSON.stringify(body);
-    return String(body);
+    return redactBody(body);
 }
 
 function prepareDefaultInit(init?: RequestInit): RequestInit {
@@ -641,14 +642,15 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
     }
 
     const urlObj = new URL(url.toString());
+    const safeUrl = redactUrl(url.toString());
 
-    logger.debug(`Sending HTTP request "${modifiedInit.method} ${url}"`, {
+    logger.debug(`Sending HTTP request "${modifiedInit.method} ${safeUrl}"`, {
         [ContextKey.Http]: {
             [ContextKeyHttp.Request]: {
                 [ContextKeyHttpRequest.Method]: modifiedInit.method,
                 [ContextKeyHttpRequest.Host]: urlObj.host,
                 [ContextKeyHttpRequest.Path]: urlObj.pathname,
-                [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                [ContextKeyHttpRequest.QueryString]: redactQueryString(urlObj.search),
                 [ContextKeyHttpRequest.Headers]: getHeadersObject(modifiedInit.headers as Headers),
                 [ContextKeyHttpRequest.Body]: getRequestBody(modifiedInit.body),
             },
@@ -683,13 +685,13 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
         }
 
         if (error instanceof TimeoutError) {
-            logger.error(error, `HTTP request "${modifiedInit.method} ${url}" timed out (${error.name}) after ${options.timeout!.timeoutMs} ms`, {
+            logger.error(error, `HTTP request "${modifiedInit.method} ${safeUrl}" timed out (${error.name}) after ${options.timeout!.timeoutMs} ms`, {
                 [ContextKey.Http]: {
                     [ContextKeyHttp.Request]: {
                         [ContextKeyHttpRequest.Method]: modifiedInit.method,
                         [ContextKeyHttpRequest.Host]: urlObj.host,
                         [ContextKeyHttpRequest.Path]: urlObj.pathname,
-                        [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                        [ContextKeyHttpRequest.QueryString]: redactQueryString(urlObj.search),
                         [ContextKeyHttpRequest.Headers]: getHeadersObject(modifiedInit.headers as Headers),
                         [ContextKeyHttpRequest.Body]: getRequestBody(modifiedInit.body),
                     },
@@ -697,20 +699,20 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
             });
         } else if (options.retry && error instanceof HTTPResponseError) {
             if (options.retry.onRejection && options.retry.onRejection(error, 1)) {
-                logger.error(error, `HTTP request "${modifiedInit.method} ${url}" retries failed after ${options.retry.attempts} retries`, {
+                logger.error(error, `HTTP request "${modifiedInit.method} ${safeUrl}" retries failed after ${options.retry.attempts} retries`, {
                     [ContextKey.Http]: {
                         [ContextKeyHttp.Request]: {
                             [ContextKeyHttpRequest.Method]: modifiedInit.method,
                             [ContextKeyHttpRequest.Host]: urlObj.host,
                             [ContextKeyHttpRequest.Path]: urlObj.pathname,
-                            [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                            [ContextKeyHttpRequest.QueryString]: redactQueryString(urlObj.search),
                             [ContextKeyHttpRequest.Headers]: getHeadersObject(modifiedInit.headers as Headers),
                             [ContextKeyHttpRequest.Body]: getRequestBody(modifiedInit.body),
                         },
                         [ContextKeyHttp.Response]: {
                             [ContextKeyHttpResponse.StatusCode]: error.response.status,
                             [ContextKeyHttpResponse.Headers]: getHeadersObject(error.response.headers),
-                            [ContextKeyHttpResponse.Body]: error.response.dataString,
+                            [ContextKeyHttpResponse.Body]: redactBody(error.response.dataString),
                         },
                     },
                 });
@@ -788,6 +790,7 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
         const __requestOptions = prepareDefaultOptions(merge({}, _requestOptions, requestOptions));
         const logger = __requestOptions.logger || contextLoggerToUse;
         const urlObj = new URL(url.toString());
+        const safeUrl = redactUrl(url.toString());
         const headers = getHeadersObject(__init.headers as Headers);
         const requestBody = getRequestBody(__init.body);
 
@@ -797,7 +800,7 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
             if (error instanceof RatelimitError) {
                 logger.error(
                     error,
-                    `HTTP request "${__init.method} ${url}" rate limited (${error.name}) - more than ${
+                    `HTTP request "${__init.method} ${safeUrl}" rate limited (${error.name}) - more than ${
                         options.containerOptions!.rateLimit?.limitForPeriod
                     } in ${options.containerOptions!.rateLimit?.limitPeriodMs} ms - ${error.remainingTimeInRatelimit} ms left in rate limit`,
                     {
@@ -806,7 +809,7 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
                                 [ContextKeyHttpRequest.Method]: __init.method,
                                 [ContextKeyHttpRequest.Host]: urlObj.host,
                                 [ContextKeyHttpRequest.Path]: urlObj.pathname,
-                                [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                                [ContextKeyHttpRequest.QueryString]: redactQueryString(urlObj.search),
                                 [ContextKeyHttpRequest.Headers]: headers,
                                 [ContextKeyHttpRequest.Body]: requestBody,
                             },
@@ -814,13 +817,13 @@ function generateFetchWithOptions(options: { init?: RequestInit; requestOptions?
                     },
                 );
             } else if (error instanceof BreakerError) {
-                logger.error(error, `HTTP request "${__init.method} ${url}" circuit open (${error.name})`, {
+                logger.error(error, `HTTP request "${__init.method} ${safeUrl}" circuit open (${error.name})`, {
                     [ContextKey.Http]: {
                         [ContextKeyHttp.Request]: {
                             [ContextKeyHttpRequest.Method]: __init.method,
                             [ContextKeyHttpRequest.Host]: urlObj.host,
                             [ContextKeyHttpRequest.Path]: urlObj.pathname,
-                            [ContextKeyHttpRequest.QueryString]: urlObj.search,
+                            [ContextKeyHttpRequest.QueryString]: redactQueryString(urlObj.search),
                             [ContextKeyHttpRequest.Headers]: headers,
                             [ContextKeyHttpRequest.Body]: requestBody,
                         },

@@ -284,9 +284,11 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         (url.to_string(), init)
     };
 
+    // SMOODEV-2716: a URL carries credentials in its userinfo password and its
+    // query params, and the tracing subscriber does no redaction of its own.
     tracing::debug!(
         method = %init.method,
-        url = %url,
+        url = %crate::redact::redact_url(&url),
         "Sending HTTP request"
     );
 
