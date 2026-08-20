@@ -77,6 +77,9 @@ jobs:
               run: dotnet restore SmooAI.Fetch.sln
               working-directory: dotnet
 
+            - name: Version consistency
+              run: pnpm version:check
+
             - name: Typecheck
               run: pnpm typecheck
 
@@ -89,8 +92,12 @@ jobs:
             - name: Build
               run: pnpm build
 
-            - name: Format
-              run: pnpm format
+            # Deliberately a CHECK, not `pnpm format`. A formatter that rewrites
+            # files here leaves the tree dirty at `cargo publish` time, which is
+            # what `--allow-dirty` used to hide. Formatting the release commit
+            # itself is `version:release`'s job.
+            - name: Format check
+              run: pnpm format:check && pnpm python:format:check && pnpm rust:fmt:check && pnpm go:fmt:check && pnpm dotnet:format:check
 
             - name: Version Update 🦋
               id: changesets
@@ -98,6 +105,7 @@ jobs:
               with:
                   commit: '🦋 New version release'
                   title: '🦋 New version release'
+                  version: pnpm run version:release
                   publish: pnpm ci:publish
                   createGithubReleases: true
               env:
@@ -118,11 +126,11 @@ jobs:
 
             - name: Publish smooai-fetch to crates.io
               if: steps.changesets.outputs.published == 'true'
-              # --locked: sync-versions.mjs now stamps Cargo.lock in lockstep with
-              # Cargo.toml, so the lock matches and the publish build is reproducible.
-              # --allow-dirty: sync-versions.mjs modifies the manifests in-place at
-              # publish time (uncommitted), which --allow-dirty permits.
-              run: cargo publish --locked --allow-dirty --manifest-path rust/fetch/Cargo.toml
+              # No --allow-dirty: sync-versions.mjs now runs during `changeset
+              # version`, so the manifests are already committed and the tree is
+              # clean here. If this ever fails on dirt, something upstream is
+              # rewriting files during the release — fix that, don't re-add the flag.
+              run: cargo publish --locked --manifest-path rust/fetch/Cargo.toml
               env:
                   CARGO_REGISTRY_TOKEN: ${{ secrets.SMOOAI_CARGO_REGISTRY_TOKEN }}
 

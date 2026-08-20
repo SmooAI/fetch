@@ -438,8 +438,3 @@ async fn test_circuit_breaker_recovery() {
     assert!(response.ok);
     assert_eq!(cb.state().await, CircuitState::Closed);
 }
-
-#[tokio::test]
-async fn test_version_constant() {
-    assert_eq!(smooai_fetch::VERSION, "2.1.2");
-}

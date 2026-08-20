@@ -1,5 +1,8 @@
 """Basic tests for smooai-fetch package imports and version."""
 
+import json
+from pathlib import Path
+
 from smooai_fetch import (
     DEFAULT_RETRY_OPTIONS,
     DEFAULT_TIMEOUT_MS,
@@ -27,8 +30,19 @@ from smooai_fetch import (
 )
 
 
-def test_version():
-    assert __version__ == "2.1.2"
+def test_version_matches_package_json():
+    """package.json is the single source of truth for the version across all five
+    ports; scripts/sync-versions.mjs stamps it into pyproject.toml.
+
+    This used to be `assert __version__ == "2.1.2"`. Asserting a literal made the
+    test agree with whatever the package happened to say, so it stayed green for
+    the entire time pyproject.toml was pinned at 2.1.2 while package.json shipped
+    3.4.0 -- the drift it was supposed to catch was the thing it locked in.
+    """
+    package_json = json.loads((Path(__file__).parents[2] / "package.json").read_text())
+    assert __version__ == package_json["version"], (
+        "pyproject.toml is out of sync with package.json -- run `node scripts/sync-versions.mjs`"
+    )
 
 
 def test_default_retry_options():

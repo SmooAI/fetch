@@ -87,8 +87,23 @@ pub async fn fetch<T: serde::de::DeserializeOwned + Clone + Send + 'static>(
 mod tests {
     use super::*;
 
+    /// package.json is the single source of truth for the version across all
+    /// five ports; `scripts/sync-versions.mjs` stamps it into Cargo.toml.
+    ///
+    /// This used to be `assert_eq!(VERSION, "2.1.2")`. Asserting a literal made
+    /// the test agree with whatever the crate happened to say, so it stayed
+    /// green for the entire time Cargo.toml was pinned at 2.1.2 while
+    /// package.json shipped 3.4.0 — the drift it was supposed to catch was the
+    /// thing it locked in.
     #[test]
-    fn test_version() {
-        assert_eq!(VERSION, "2.1.2");
+    fn version_matches_package_json() {
+        const PACKAGE_JSON: &str = include_str!("../../../package.json");
+        let pkg: serde_json::Value =
+            serde_json::from_str(PACKAGE_JSON).expect("package.json must parse");
+        let expected = pkg["version"].as_str().expect("package.json has a version");
+        assert_eq!(
+            VERSION, expected,
+            "Cargo.toml is out of sync with package.json — run `node scripts/sync-versions.mjs`"
+        );
     }
 }

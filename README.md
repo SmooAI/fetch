@@ -198,15 +198,15 @@ flowchart LR
 
 ## 📦 Install
 
-| Language   | Package                                                        | Install                                   |
-| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
-| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
-| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
-| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
-| .NET       | [`SmooAI.Fetch`](https://www.nuget.org/packages/SmooAI.Fetch)  | `dotnet add package SmooAI.Fetch`         |
+| Language   | Package                                                        | Install                                      |
+| ---------- | -------------------------------------------------------------- | -------------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                     |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                   |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                     |
+| Go         | `github.com/SmooAI/fetch/go/fetch/v3`                          | `go get github.com/SmooAI/fetch/go/fetch/v3` |
+| .NET       | [`SmooAI.Fetch`](https://www.nuget.org/packages/SmooAI.Fetch)  | `dotnet add package SmooAI.Fetch`            |
 
-> **Go note:** `go get` currently resolves a pseudo-version tracking `main` (the module path doesn't yet carry the `/v3` suffix the `go/fetch/v3.x` tags would need, so tagged versions don't resolve). `main` is what's released everywhere else; a proper `/v3` module path is planned.
+> **Go note:** the module path carries the `/v3` major suffix Go requires above v1, so the `go/fetch/v3.x` tags resolve. The import path is `github.com/SmooAI/fetch/go/fetch/v3`; the package identifier is still `fetch`. Tags minted before this change (through `go/fetch/v3.4.0`) point at commits whose `go.mod` lacked the suffix and will not resolve — use `v3.4.1` or later.
 
 Language-specific source lives in [`src/`](./src/) (TypeScript), [`python/`](./python/), [`rust/`](./rust/), [`go/`](./go/), and [`dotnet/`](./dotnet/).
 

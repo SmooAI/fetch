@@ -68,6 +68,9 @@ jobs:
               run: dotnet restore SmooAI.Fetch.sln
               working-directory: dotnet
 
+            - name: Version consistency
+              run: pnpm version:check
+
             - name: Typecheck
               run: pnpm typecheck
 

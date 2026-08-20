@@ -58,15 +58,15 @@ Ever had a Go microservice pile up goroutines because a downstream API was down?
 ### Install
 
 ```bash
-go get github.com/SmooAI/fetch/go/fetch
+go get github.com/SmooAI/fetch/go/fetch/v3
 ```
 
-| Language   | Package                                                        | Install                                   |
-| ---------- | -------------------------------------------------------------- | ----------------------------------------- |
-| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                  |
-| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                |
-| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                  |
-| Go         | `github.com/SmooAI/fetch/go/fetch`                             | `go get github.com/SmooAI/fetch/go/fetch` |
+| Language   | Package                                                        | Install                                      |
+| ---------- | -------------------------------------------------------------- | -------------------------------------------- |
+| TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                     |
+| Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                   |
+| Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                     |
+| Go         | `github.com/SmooAI/fetch/go/fetch/v3`                          | `go get github.com/SmooAI/fetch/go/fetch/v3` |
 
 ## The Power of Resilient Fetching
 
@@ -75,7 +75,7 @@ go get github.com/SmooAI/fetch/go/fetch
 Watch how smooai-fetch handles common failure scenarios:
 
 ```go
-import "github.com/SmooAI/fetch/go/fetch"
+import "github.com/SmooAI/fetch/go/fetch/v3"
 
 type ApiData struct {
     ID    string `json:"id"`
@@ -121,7 +121,7 @@ resp, err := fetch.Get[Repos](ctx, nil, "https://api.github.com/user/repos", nil
 
 ```go
 import (
-    "github.com/SmooAI/fetch/go/fetch"
+    "github.com/SmooAI/fetch/go/fetch/v3"
     "time"
 )
 
@@ -174,7 +174,7 @@ fmt.Println("Created user:", resp.Data.ID)
 ```go
 import (
     "errors"
-    "github.com/SmooAI/fetch/go/fetch"
+    "github.com/SmooAI/fetch/go/fetch/v3"
     "time"
 )
 
@@ -364,7 +364,7 @@ Out of the box, smooai-fetch is configured for the real world:
 ```go
 import (
     "errors"
-    "github.com/SmooAI/fetch/go/fetch"
+    "github.com/SmooAI/fetch/go/fetch/v3"
 )
 
 resp, err := fetch.Get[Data](ctx, client, "https://api.example.com/data", nil)
