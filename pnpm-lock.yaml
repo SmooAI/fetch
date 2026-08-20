@@ -9,9 +9,6 @@ importers:
 
   .:
     dependencies:
-      '@faker-js/faker':
-        specifier: ^9.6.0
-        version: 9.6.0
       '@smooai/logger':
         specifier: ^4.1.4
         version: 4.1.4
@@ -21,9 +18,6 @@ importers:
       '@standard-schema/spec':
         specifier: ^1.0.0
         version: 1.0.0
-      '@standard-schema/utils':
-        specifier: ^0.3.0
-        version: 0.3.0
       lodash.merge:
         specifier: ^4.6.2
         version: 4.6.2
@@ -464,10 +458,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
-
-  '@faker-js/faker@9.6.0':
-    resolution: {integrity: sha512-3vm4by+B5lvsFPSyep3ELWmZfE3kicDtmemVpuwl1yH7tqtnHdsA6hG8fbXedMVdkzgtvzWoRgjSB4Q+FHnZiw==}
-    engines: {node: '>=18.0.0', npm: '>=9.0.0'}
 
   '@inquirer/confirm@5.1.8':
     resolution: {integrity: sha512-dNLWCYZvXDjO3rnQfk2iuJNL4Ivwz/T2+C3+WnNfJKsNGSuOs3wAo2F6e0p946gtSAk31nZMfW+MRmYaplPKsg==}
@@ -3172,8 +3162,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.2':
     optional: true
-
-  '@faker-js/faker@9.6.0': {}
 
   '@inquirer/confirm@5.1.8(@types/node@22.13.10)':
     dependencies:
