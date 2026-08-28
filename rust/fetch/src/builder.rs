@@ -55,6 +55,7 @@ pub struct FetchBuilder<T: DeserializeOwned + Clone + Send + 'static> {
     hooks: LifecycleHooks<T>,
     auth_token_provider: Option<AuthTokenProvider>,
     auth_scheme: String,
+    follow_redirects: Option<bool>,
 }
 
 impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
@@ -69,6 +70,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             container_options: FetchContainerOptions::default(),
             default_init: None,
             hooks: LifecycleHooks::default(),
+            follow_redirects: None,
             auth_token_provider: None,
             auth_scheme: "Bearer".to_string(),
         }
@@ -248,6 +250,31 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
         self
     }
 
+    /// Controls whether redirects are followed. Defaults to following, matching
+    /// reqwest.
+    ///
+    /// Set `false` when a redirect must not be followed. Two cases where
+    /// following one is wrong rather than merely surprising:
+    ///
+    /// - A caller that resolved the target hostname and checked it against an
+    ///   SSRF allowlist has that guard defeated by a 302 to an internal
+    ///   address, because the check was performed on the original host.
+    /// - RFC 8461 forbids fetching an MTA-STS policy through a redirect.
+    ///
+    /// With `false` the 3xx is returned as an ordinary response rather than
+    /// raised as an error.
+    ///
+    /// This lives on the builder, not on [`RequestInit`], for two reasons:
+    /// reqwest's redirect policy is per-Client rather than per-request, and a
+    /// new public field on `RequestInit` would break every exhaustive
+    /// constructor downstream — 129 of them in the SmooAI monorepo alone. The
+    /// Go and .NET ports expose the same client-level shape.
+    #[must_use]
+    pub fn with_follow_redirects(mut self, follow: bool) -> Self {
+        self.follow_redirects = Some(follow);
+        self
+    }
+
     /// Build the configured fetch client.
     pub fn build(self) -> FetchClient<T> {
         let rate_limiter = self
@@ -272,6 +299,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchBuilder<T> {
             hooks: Arc::new(self.hooks),
             auth_token_provider: self.auth_token_provider,
             auth_scheme: self.auth_scheme,
+            follow_redirects: self.follow_redirects,
         }
     }
 }
@@ -293,6 +321,7 @@ pub struct FetchClient<T: DeserializeOwned + Clone + Send + 'static> {
     hooks: Arc<LifecycleHooks<T>>,
     auth_token_provider: Option<AuthTokenProvider>,
     auth_scheme: String,
+    follow_redirects: Option<bool>,
 }
 
 impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
@@ -305,7 +334,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
         // Merge default init with per-request init
         let merged_init = self.apply_auth(self.merge_init(init)).await;
 
-        crate::client::fetch::<T>(
+        crate::client::fetch_with_redirect_policy::<T>(
             url,
             merged_init,
             Some(self.fetch_options.clone()),
@@ -313,6 +342,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
             self.rate_limit_retry.as_ref(),
             self.circuit_breaker.as_ref(),
             Some(self.hooks.as_ref()),
+            self.follow_redirects,
         )
         .await
     }
@@ -326,7 +356,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
     ) -> Result<FetchResponse<T>, FetchError> {
         let merged_init = self.apply_auth(self.merge_init(init)).await;
 
-        crate::client::fetch::<T>(
+        crate::client::fetch_with_redirect_policy::<T>(
             url,
             merged_init,
             Some(options),
@@ -334,6 +364,7 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
             self.rate_limit_retry.as_ref(),
             self.circuit_breaker.as_ref(),
             Some(self.hooks.as_ref()),
+            self.follow_redirects,
         )
         .await
     }
@@ -371,10 +402,6 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
                     method: init.method,
                     headers: merged_headers,
                     body: init.body.or_else(|| default.body.clone()),
-                    // Per-request wins, but only when it SAYS something —
-                    // `None` inherits, so a client default of `Some(false)`
-                    // survives a per-request `..Default::default()`.
-                    follow_redirects: init.follow_redirects.or(default.follow_redirects),
                 }
             }
             None => init,

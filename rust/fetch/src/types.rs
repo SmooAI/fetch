@@ -215,6 +215,12 @@ impl Method {
 }
 
 /// Request initialization options, analogous to the JS `RequestInit`.
+///
+/// Redirect behaviour is NOT here: it is a client-level concern in reqwest
+/// (the policy lives on the Client, not the request), and adding a public
+/// field to this struct would break every exhaustive constructor downstream.
+/// Use [`crate::builder::FetchBuilder::with_follow_redirects`], which is what
+/// the Go and .NET ports expose too.
 #[derive(Debug, Clone, Default)]
 pub struct RequestInit {
     /// HTTP method.
@@ -223,23 +229,4 @@ pub struct RequestInit {
     pub headers: HashMap<String, String>,
     /// Request body (serialized as a string).
     pub body: Option<String>,
-    /// Whether to follow HTTP redirects. `None` inherits the client default,
-    /// which is to follow.
-    ///
-    /// Set `Some(false)` when a redirect must not be followed automatically.
-    /// Two cases where following one is wrong rather than merely surprising:
-    ///
-    /// - The caller resolved the target hostname and checked it against an
-    ///   SSRF allowlist. A 302 to an internal address defeats that guard
-    ///   entirely, because the check was performed on the original host.
-    /// - RFC 8461 forbids fetching an MTA-STS policy through a redirect.
-    ///
-    /// With `Some(false)` the 3xx is returned as an ordinary response.
-    ///
-    /// `Option` rather than `bool` for two reasons: it keeps
-    /// `#[derive(Default)]` correct (a bare `bool` would default to FALSE and
-    /// silently flip behaviour for every `..Default::default()` caller), and it
-    /// lets [`crate::builder`]'s `merge_init` tell "unset" from "explicitly
-    /// true" so a client-level default is not clobbered by a per-request init.
-    pub follow_redirects: Option<bool>,
 }

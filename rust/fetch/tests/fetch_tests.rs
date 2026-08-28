@@ -77,7 +77,6 @@ async fn test_basic_post_request_with_body() {
         method: Method::POST,
         headers,
         body: Some(r#"{"key":"value"}"#.to_string()),
-        follow_redirects: None,
     };
     let options = FetchOptions {
         connect_timeout_ms: None,
@@ -346,12 +345,13 @@ async fn test_default_method_is_get() {
 // `Option<bool>` so that `None` inherits and a client-level default is not
 // clobbered by a per-request `..Default::default()`.
 #[test]
-fn request_init_defaults_to_following_redirects() {
+fn request_init_has_no_redirect_field() {
+    // Deliberate: a public field here would break every exhaustive
+    // `RequestInit { .. }` downstream. Redirect policy is per-Client in reqwest
+    // anyway, so it belongs on the builder — as it does in Go and .NET.
     let init = RequestInit::default();
-    assert_eq!(
-        init.follow_redirects, None,
-        "unset must mean inherit, not 'do not follow'"
-    );
+    assert_eq!(init.method, Method::GET);
+    assert!(init.body.is_none());
 }
 
 #[tokio::test]
@@ -368,24 +368,13 @@ async fn a_redirect_is_not_followed_when_the_caller_opts_out() {
         .mount(&server)
         .await;
 
-    let init = RequestInit {
-        follow_redirects: Some(false),
-        ..Default::default()
-    };
-    let result = client::fetch::<serde_json::Value>(
-        &format!("{}/start", server.uri()),
-        init,
-        Some(FetchOptions {
-            connect_timeout_ms: None,
-            timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
-            retry: None,
-        }),
-        None,
-        None,
-        None,
-        None,
-    )
-    .await;
+    let client = smooai_fetch::builder::FetchBuilder::<serde_json::Value>::new()
+        .with_follow_redirects(false)
+        .without_retry()
+        .build();
+    let result = client
+        .fetch(&format!("{}/start", server.uri()), RequestInit::default())
+        .await;
 
     let response = result.expect("a 3xx is a response, not a transport error");
     assert_eq!(
@@ -406,21 +395,13 @@ async fn a_redirect_is_followed_by_default() {
         .mount(&server)
         .await;
 
-    let response = client::fetch::<serde_json::Value>(
-        &format!("{}/start", server.uri()),
-        RequestInit::default(),
-        Some(FetchOptions {
-            connect_timeout_ms: None,
-            timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
-            retry: None,
-        }),
-        None,
-        None,
-        None,
-        None,
-    )
-    .await
-    .expect("follows by default");
+    let client = smooai_fetch::builder::FetchBuilder::<serde_json::Value>::new()
+        .without_retry()
+        .build();
+    let response = client
+        .fetch(&format!("{}/start", server.uri()), RequestInit::default())
+        .await
+        .expect("follows by default");
 
     assert_eq!(response.status, 200, "default behaviour must be unchanged");
 }
