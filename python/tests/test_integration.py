@@ -321,3 +321,40 @@ class TestMultipleStatusCodes:
         assert response.ok
         assert response.status_code == 201
         assert response.data == {"id": "new-id"}
+
+
+class TestRedirectPolicy:
+    """th-86dc77 — follow_redirects was hardcoded True in the httpx kwargs and
+    not exposed on FetchOptions, so a caller could not decline to follow.
+
+    Following one defeats an SSRF check performed on the original host (a 302
+    to an internal address bypasses it), and RFC 8461 forbids it outright when
+    fetching an MTA-STS policy.
+    """
+
+    def test_follow_redirects_defaults_to_true(self):
+        """Unset must mean follow, so existing callers are unaffected."""
+        assert FetchOptions().follow_redirects is True
+
+    @respx.mock
+    async def test_redirect_not_followed_when_caller_opts_out(self):
+        start = respx.get(URL).mock(return_value=httpx.Response(302, headers={"Location": f"{URL}/landing"}))
+        landing = respx.get(f"{URL}/landing").mock(return_value=httpx.Response(200, json={"arrived": True}))
+
+        response = await fetch(URL, FetchOptions(follow_redirects=False, retry=None))
+
+        assert response.status_code == 302, "the redirect must not have been followed"
+        assert start.called
+        # Mounted so that following would visibly succeed — this asserts the hop
+        # did not happen, not that it 404'd.
+        assert not landing.called, "the redirect was followed despite follow_redirects=False"
+
+    @respx.mock
+    async def test_redirects_are_followed_by_default(self):
+        respx.get(URL).mock(return_value=httpx.Response(302, headers={"Location": f"{URL}/landing"}))
+        landing = respx.get(f"{URL}/landing").mock(return_value=httpx.Response(200, json={"arrived": True}))
+
+        response = await fetch(URL, FetchOptions(retry=None))
+
+        assert response.status_code == 200, "default behaviour must be unchanged"
+        assert landing.called

@@ -108,6 +108,12 @@ public sealed class SmooFetch
             handler.ConnectTimeout = connectTimeout;
         }
 
+        // Defaults to true on the handler, so only the opt-out is worth setting.
+        if (!options.FollowRedirects)
+        {
+            handler.AllowAutoRedirect = false;
+        }
+
         var client = new HttpClient(handler) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         return new SmooFetch(client, ownsHttpClient: true, options, logger: null);
     }
@@ -245,10 +251,30 @@ public sealed class SmooFetch
     {
         using var request = BuildRequest(method, path, body, hasBody);
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        if (!IsAcceptable(response))
         {
             await ThrowHttpResponseErrorAsync(response, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Whether a response should be returned rather than thrown.
+    /// </summary>
+    /// <remarks>
+    /// A 3xx when <see cref="SmooFetchOptions.FollowRedirects"/> is false is the ANSWER,
+    /// not a failure — the caller asked to see the redirect rather than follow it. Without
+    /// this, honouring the option leaves it useless: the 302 comes back and is immediately
+    /// thrown as an <see cref="HttpResponseError"/> because it is not 2xx.
+    /// </remarks>
+    private bool IsAcceptable(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return true;
+        }
+
+        var status = (int)response.StatusCode;
+        return !_options.FollowRedirects && status >= 300 && status < 400;
     }
 
     private HttpRequestMessage BuildRequest(HttpMethod method, string path, object? body, bool hasBody)
@@ -346,7 +372,7 @@ public sealed class SmooFetch
 
     private async Task<TResponse> ReadJsonResponseAsync<TResponse>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        if (!response.IsSuccessStatusCode)
+        if (!IsAcceptable(response))
         {
             await ThrowHttpResponseErrorAsync(response, cancellationToken).ConfigureAwait(false);
         }

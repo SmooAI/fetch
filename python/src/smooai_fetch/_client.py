@@ -51,7 +51,11 @@ def _build_request_kwargs(
     kwargs: dict[str, Any] = {
         "method": opts.method,
         "url": url,
-        "follow_redirects": True,
+        # Caller-controlled: following a redirect defeats an SSRF check
+        # performed on the original host, and RFC 8461 forbids it outright when
+        # fetching an MTA-STS policy. Defaults True, so existing callers are
+        # unaffected.
+        "follow_redirects": opts.follow_redirects,
     }
 
     # Headers

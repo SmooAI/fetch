@@ -615,7 +615,16 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     init?: RequestInit,
     options?: RequestOptions<Schema>,
 ): Promise<ResponseWithBody<ResponseType<Schema>>> {
-    const useInit: RequestInit = merge({}, init, { redirect: 'follow' });
+    // Defaults FIRST, caller's init LAST — `merge` lets later sources win, so
+    // the old order (`merge({}, init, { redirect: 'follow' })`) silently
+    // overwrote an explicit `redirect: 'manual' | 'error'` with 'follow'.
+    //
+    // Following redirects is the right default, but it must be a default and
+    // not a mandate: a caller that resolved a hostname and checked it against
+    // an SSRF allowlist has that guard defeated by a 302 to an internal
+    // address, and RFC 8461 forbids following them at all when fetching an
+    // MTA-STS policy.
+    const useInit: RequestInit = merge({}, { redirect: 'follow' } as RequestInit, init);
 
     // Stringify JSON body if needed
     if ((useInit?.headers as Record<string, string>)?.['Content-Type'] === 'application/json' && typeof useInit.body === 'object') {
@@ -672,7 +681,13 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
     responseWithBody.dataString = dataString;
     responseWithBody.data = data;
 
-    if (responseClone.ok || responseClone.redirected) {
+    // A 3xx under `redirect: 'manual'` is the ANSWER, not a failure — the
+    // caller asked to see the redirect rather than follow it. It is neither
+    // `ok` nor `redirected` (nothing was followed), so without this it would
+    // throw and the option would be useless even once it is honoured.
+    const isManualRedirect = useInit.redirect === 'manual' && responseClone.status >= 300 && responseClone.status < 400;
+
+    if (responseClone.ok || responseClone.redirected || isManualRedirect) {
         return responseWithBody;
     } else {
         if (!read) {

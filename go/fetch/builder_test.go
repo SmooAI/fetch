@@ -389,3 +389,80 @@ func TestClientBuilder_WithCircuitBreakerStateChange(t *testing.T) {
 		t.Errorf("expected Closed→Open as first transition, got %d→%d", observed[0].from, observed[0].to)
 	}
 }
+
+// th-86dc77 — redirects were followed unconditionally (net/http's default),
+// with no way for a caller to say otherwise. Following one defeats an SSRF
+// check performed on the original host, and RFC 8461 forbids it when fetching
+// an MTA-STS policy.
+func TestWithFollowRedirectsFalseReturnsThe3xx(t *testing.T) {
+	var landed bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/landing" {
+			landed = true
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Location", "/landing")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := NewClientBuilder().WithFollowRedirects(false).Build()
+	resp, err := Fetch[any](context.Background(), client, http.MethodGet, server.URL+"/start", nil, nil)
+	if err != nil {
+		t.Fatalf("a 3xx is a response, not a transport error: %v", err)
+	}
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("expected 302, got %d", resp.StatusCode)
+	}
+	// The landing handler is mounted so that following would visibly succeed —
+	// this asserts the hop did not happen, not that it 404'd.
+	if landed {
+		t.Error("the redirect was followed despite WithFollowRedirects(false)")
+	}
+}
+
+func TestRedirectsAreFollowedByDefault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/landing" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Location", "/landing")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := NewClientBuilder().Build()
+	resp, err := Fetch[any](context.Background(), client, http.MethodGet, server.URL+"/start", nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("default must still follow; got %d", resp.StatusCode)
+	}
+}
+
+// The option must survive WithHTTPClient — an SSRF control that silently did
+// not apply because the caller brought their own client would be worse than
+// not offering one.
+func TestFollowRedirectsAppliesToACallerSuppliedClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "/landing")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := NewClientBuilder().
+		WithHTTPClient(&http.Client{Timeout: 5 * time.Second}).
+		WithFollowRedirects(false).
+		Build()
+
+	resp, err := Fetch[any](context.Background(), client, http.MethodGet, server.URL+"/start", nil, nil)
+	if err != nil {
+		t.Fatalf("a 3xx is a response, not a transport error: %v", err)
+	}
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("expected 302 through a caller-supplied client, got %d", resp.StatusCode)
+	}
+}

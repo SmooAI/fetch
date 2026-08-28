@@ -76,6 +76,20 @@ public sealed class SmooFetchBuilder
         return this;
     }
 
+    /// <summary>
+    /// Controls whether redirects are followed. Defaults to <c>true</c>.
+    /// </summary>
+    /// <remarks>
+    /// Set <c>false</c> when a redirect must not be followed: it defeats an SSRF check
+    /// performed on the original host, and RFC 8461 forbids it when fetching an MTA-STS
+    /// policy. The 3xx is then returned rather than thrown.
+    /// </remarks>
+    public SmooFetchBuilder WithFollowRedirects(bool followRedirects)
+    {
+        _options.FollowRedirects = followRedirects;
+        return this;
+    }
+
     /// <summary>Register an async auth-token provider.</summary>
     public SmooFetchBuilder WithAuthTokenProvider(AuthTokenProvider provider, string scheme = "Bearer")
     {
@@ -231,6 +245,11 @@ public sealed class SmooFetchBuilder
             o.RetryPolicy = _options.RetryPolicy;
             o.Timeout = _options.Timeout;
             o.ConnectTimeout = _options.ConnectTimeout;
+            // NOTE: this method copies options field by field, so anything added
+            // to SmooFetchOptions and NOT listed here is silently dropped —
+            // WithFollowRedirects was honoured by the handler and lost in transit
+            // until a test caught it.
+            o.FollowRedirects = _options.FollowRedirects;
             o.AuthTokenProvider = _options.AuthTokenProvider;
             o.AuthScheme = _options.AuthScheme;
             o.JsonOptions = _options.JsonOptions;

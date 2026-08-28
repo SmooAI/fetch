@@ -302,3 +302,18 @@ class FetchOptions:
 
     auth_scheme: str = "Bearer"
     """Auth scheme prefix used with `auth_token_provider`. Defaults to "Bearer"."""
+
+    follow_redirects: bool = True
+    """Whether to follow HTTP redirects. Defaults to True.
+
+    Set False when a redirect must not be followed automatically. Two cases
+    where following one is wrong rather than merely surprising:
+
+    - The caller resolved the target hostname and checked it against an SSRF
+      allowlist. A 302 to an internal address defeats that guard entirely,
+      because the check was performed on the original host.
+    - RFC 8461 forbids fetching an MTA-STS policy through a redirect.
+
+    With False, a 3xx is returned as an ordinary response for the caller to
+    inspect rather than raising.
+    """

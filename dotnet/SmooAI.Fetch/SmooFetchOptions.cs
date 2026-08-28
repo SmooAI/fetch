@@ -32,6 +32,22 @@ public sealed class SmooFetchOptions
     /// </summary>
     public TimeSpan? ConnectTimeout { get; set; }
 
+    /// <summary>
+    /// Whether redirects are followed automatically. Defaults to <c>true</c>, matching
+    /// <see cref="System.Net.Http.SocketsHttpHandler.AllowAutoRedirect"/>.
+    /// </summary>
+    /// <remarks>
+    /// Set <c>false</c> when a redirect must not be followed. Two cases where following one
+    /// is wrong rather than merely surprising: a caller that resolved the target hostname and
+    /// checked it against an SSRF allowlist has that guard defeated by a 302 to an internal
+    /// address, because the check was performed on the original host; and RFC 8461 forbids
+    /// fetching an MTA-STS policy through a redirect. With <c>false</c> the 3xx is returned
+    /// as an ordinary response to inspect.
+    /// Ignored when <see cref="RequireHttpClientFactory"/> is true (the factory owns the handler);
+    /// configure <c>AllowAutoRedirect</c> on the primary handler at DI registration instead.
+    /// </remarks>
+    public bool FollowRedirects { get; set; } = true;
+
     /// <summary>Optional auth token provider. When set, the returned token is added as <c>Authorization: Bearer {token}</c>.</summary>
     public AuthTokenProvider? AuthTokenProvider { get; set; }
 
