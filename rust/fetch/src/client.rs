@@ -173,12 +173,13 @@ async fn do_single_request<T: DeserializeOwned>(
     url: &str,
     init: &RequestInit,
     connect_timeout_ms: Option<u64>,
+    follow_redirects: Option<bool>,
 ) -> Result<FetchResponse<T>, FetchError> {
     let mut client_builder = reqwest::Client::builder();
     if let Some(ms) = connect_timeout_ms {
         client_builder = client_builder.connect_timeout(Duration::from_millis(ms));
     }
-    if init.follow_redirects == Some(false) {
+    if follow_redirects == Some(false) {
         // Per-client, not per-request, in reqwest — which is why a caller could
         // not previously express this without building its own client.
         client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
@@ -255,7 +256,7 @@ async fn do_single_request<T: DeserializeOwned>(
     // without this leaves the option useless: reqwest returns the 302, and it
     // is then raised as an `HttpResponse` error because it is not 2xx.
     let is_unfollowed_redirect =
-        init.follow_redirects == Some(false) && (300..400).contains(&(status as u32));
+        follow_redirects == Some(false) && (300..400).contains(&(status as u32));
 
     if fetch_response.ok || is_unfollowed_redirect {
         Ok(fetch_response)
@@ -285,6 +286,39 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
     rate_limit_retry: Option<&RateLimitRetryOptions>,
     circuit_breaker: Option<&CircuitBreaker>,
     hooks: Option<&LifecycleHooks<T>>,
+) -> Result<FetchResponse<T>, FetchError> {
+    fetch_with_redirect_policy(
+        url,
+        init,
+        options,
+        rate_limiter,
+        rate_limit_retry,
+        circuit_breaker,
+        hooks,
+        None,
+    )
+    .await
+}
+
+/// [`fetch`], plus explicit control over redirect following.
+///
+/// A separate entry point rather than an eighth parameter on [`fetch`], because
+/// changing that signature would break every existing caller. `None` follows,
+/// which is the default everywhere else.
+///
+/// `Some(false)` returns a 3xx as an ordinary response instead of following it —
+/// see [`crate::builder::FetchBuilder::with_follow_redirects`] for why that
+/// matters (SSRF guards, RFC 8461).
+#[allow(clippy::too_many_arguments)]
+pub async fn fetch_with_redirect_policy<T: DeserializeOwned + Clone + Send + 'static>(
+    url: &str,
+    init: RequestInit,
+    options: Option<FetchOptions>,
+    rate_limiter: Option<&SlidingWindowRateLimiter>,
+    rate_limit_retry: Option<&RateLimitRetryOptions>,
+    circuit_breaker: Option<&CircuitBreaker>,
+    hooks: Option<&LifecycleHooks<T>>,
+    follow_redirects: Option<bool>,
 ) -> Result<FetchResponse<T>, FetchError> {
     let opts = options.unwrap_or_default();
 
@@ -348,7 +382,7 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         async move {
             timeout::with_timeout(
                 timeout_ms,
-                do_single_request::<T>(&url, &init, connect_timeout_ms),
+                do_single_request::<T>(&url, &init, connect_timeout_ms, follow_redirects),
             )
             .await
         }
@@ -361,7 +395,7 @@ pub async fn fetch<T: DeserializeOwned + Clone + Send + 'static>(
         // No retry, just execute once with timeout
         timeout::with_timeout(
             timeout_ms,
-            do_single_request::<T>(&url, &init, connect_timeout_ms),
+            do_single_request::<T>(&url, &init, connect_timeout_ms, follow_redirects),
         )
         .await
     };
