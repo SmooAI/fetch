@@ -789,6 +789,58 @@ describe('Test fetch', () => {
             expect(mockFetch.mock.calls[0][1]?.redirect).toBe('follow');
         });
 
+        // th-86dc77 — `redirect` used to be forced to 'follow' by
+        // `merge({}, init, { redirect: 'follow' })`, the literal winning
+        // because merge lets later sources win. The test above passed under
+        // that bug: it asks for 'follow' and gets 'follow'. These do not.
+        test('honours redirect: manual instead of forcing follow', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            await fetch(URL_TO_USE, { method: 'GET', redirect: 'manual' });
+
+            expect(mockFetch.mock.calls[0][1]?.redirect).toBe('manual');
+        });
+
+        test('honours redirect: error', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            await fetch(URL_TO_USE, { method: 'GET', redirect: 'error' });
+
+            expect(mockFetch.mock.calls[0][1]?.redirect).toBe('error');
+        });
+
+        test('still defaults to follow when the caller says nothing', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(true, 200));
+
+            await fetch(URL_TO_USE, { method: 'GET' });
+
+            expect(mockFetch.mock.calls[0][1]?.redirect).toBe('follow');
+        });
+
+        // Honouring the option is not enough on its own: a 3xx under manual is
+        // neither `ok` nor `redirected`, so it would otherwise be thrown as an
+        // HTTPResponseError and the option would be useless.
+        test('returns a 3xx under redirect: manual rather than throwing', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(false, 302, {}, '', false));
+
+            const response = await fetch(URL_TO_USE, { method: 'GET', redirect: 'manual' });
+
+            expect(response.status).toBe(302);
+        });
+
+        // ...but a 3xx WITHOUT manual is still an error, so the change does not
+        // quietly swallow unexpected redirects for everyone else.
+        test('a 3xx without redirect: manual still throws', async () => {
+            const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
+            mockFetch.mockResolvedValue(fakeResponse(false, 302, {}, '', false));
+
+            await expect(fetch(URL_TO_USE, { method: 'GET', options: { retry: { attempts: 1, initialIntervalMs: 1 } } })).rejects.toThrow();
+        });
+
         test('Test fetch with referrer', async () => {
             const mockFetch = global.fetch as MockedFunction<(url: RequestInfo, init?: RequestInit) => Promise<Response>>;
             mockFetch.mockResolvedValue(fakeResponse(true, 200));

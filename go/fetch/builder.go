@@ -17,6 +17,7 @@ type ClientBuilder struct {
 	circuitBreakerOpts *CircuitBreakerOptions
 	circuitBreakerName string
 	hooks              *LifecycleHooks
+	followRedirects    *bool
 	authProvider       AuthTokenProvider
 	authScheme         string
 }
@@ -29,6 +30,28 @@ func NewClientBuilder() *ClientBuilder {
 		retryOpts:   &retryOpts,
 		timeoutOpts: &timeoutOpts,
 	}
+}
+
+// WithFollowRedirects controls whether redirects are followed. Defaults to
+// true, matching net/http.
+//
+// Set false when a redirect must not be followed automatically. Two cases where
+// following one is wrong rather than merely surprising:
+//
+//   - The caller resolved the target hostname and checked it against an SSRF
+//     allowlist. A 302 to an internal address defeats that guard entirely,
+//     because the check was performed on the original host.
+//   - RFC 8461 forbids fetching an MTA-STS policy through a redirect.
+//
+// With false the 3xx is returned as an ordinary response to inspect, via
+// http.ErrUseLastResponse.
+//
+// This applies to a caller-supplied *http.Client too, unlike the connect
+// timeout — an SSRF control that silently did not apply because you brought
+// your own client would be worse than no option at all.
+func (b *ClientBuilder) WithFollowRedirects(follow bool) *ClientBuilder {
+	b.followRedirects = &follow
+	return b
 }
 
 // WithHTTPClient sets the underlying *http.Client.
@@ -169,15 +192,16 @@ func (b *ClientBuilder) WithContainerOptions(opts FetchContainerOptions) *Client
 // Build constructs the Client from the builder configuration.
 func (b *ClientBuilder) Build() *Client {
 	c := &Client{
-		httpClient:     b.httpClient,
-		baseHeaders:    b.baseHeaders,
-		retry:          b.retryOpts,
-		timeout:        b.timeoutOpts,
-		connectTimeout: b.connectTimeout,
-		rateLimitRetry: b.rateLimitRetryOpts,
-		hooks:          b.hooks,
-		authProvider:   b.authProvider,
-		authScheme:     b.authScheme,
+		httpClient:      b.httpClient,
+		baseHeaders:     b.baseHeaders,
+		retry:           b.retryOpts,
+		timeout:         b.timeoutOpts,
+		connectTimeout:  b.connectTimeout,
+		rateLimitRetry:  b.rateLimitRetryOpts,
+		followRedirects: b.followRedirects,
+		hooks:           b.hooks,
+		authProvider:    b.authProvider,
+		authScheme:      b.authScheme,
 	}
 	if c.authScheme == "" {
 		c.authScheme = "Bearer"
@@ -189,6 +213,15 @@ func (b *ClientBuilder) Build() *Client {
 		// a caller-provided *http.Client (via WithHTTPClient) is left untouched.
 		if b.connectTimeout > 0 {
 			c.httpClient.Transport = transportWithConnectTimeout(b.connectTimeout)
+		}
+	}
+
+	// Applied to whichever client is in use, including a caller-supplied one.
+	// This is a security control, and one that silently did not apply because
+	// the caller brought their own client would be worse than not offering it.
+	if b.followRedirects != nil && !*b.followRedirects {
+		c.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
 	}
 

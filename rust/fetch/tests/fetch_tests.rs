@@ -77,6 +77,7 @@ async fn test_basic_post_request_with_body() {
         method: Method::POST,
         headers,
         body: Some(r#"{"key":"value"}"#.to_string()),
+        follow_redirects: None,
     };
     let options = FetchOptions {
         connect_timeout_ms: None,
@@ -338,4 +339,88 @@ async fn test_default_method_is_get() {
         .unwrap();
 
     assert!(response.ok);
+}
+
+// th-86dc77 — redirects were followed unconditionally (reqwest's default of up
+// to 10 hops), with no way for a caller to say otherwise. `follow_redirects` is
+// `Option<bool>` so that `None` inherits and a client-level default is not
+// clobbered by a per-request `..Default::default()`.
+#[test]
+fn request_init_defaults_to_following_redirects() {
+    let init = RequestInit::default();
+    assert_eq!(
+        init.follow_redirects, None,
+        "unset must mean inherit, not 'do not follow'"
+    );
+}
+
+#[tokio::test]
+async fn a_redirect_is_not_followed_when_the_caller_opts_out() {
+    let server = MockServer::start().await;
+    Mock::given(path("/start"))
+        .respond_with(ResponseTemplate::new(302).insert_header("location", "/landing"))
+        .mount(&server)
+        .await;
+    // Mounted so that FOLLOWING would visibly succeed — the assertion below is
+    // about the 302 coming back, not about the hop 404ing.
+    Mock::given(path("/landing"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("arrived"))
+        .mount(&server)
+        .await;
+
+    let init = RequestInit {
+        follow_redirects: Some(false),
+        ..Default::default()
+    };
+    let result = client::fetch::<serde_json::Value>(
+        &format!("{}/start", server.uri()),
+        init,
+        Some(FetchOptions {
+            connect_timeout_ms: None,
+            timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+            retry: None,
+        }),
+        None,
+        None,
+        None,
+        None,
+    )
+    .await;
+
+    let response = result.expect("a 3xx is a response, not a transport error");
+    assert_eq!(
+        response.status, 302,
+        "the redirect must not have been followed"
+    );
+}
+
+#[tokio::test]
+async fn a_redirect_is_followed_by_default() {
+    let server = MockServer::start().await;
+    Mock::given(path("/start"))
+        .respond_with(ResponseTemplate::new(302).insert_header("location", "/landing"))
+        .mount(&server)
+        .await;
+    Mock::given(path("/landing"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("arrived"))
+        .mount(&server)
+        .await;
+
+    let response = client::fetch::<serde_json::Value>(
+        &format!("{}/start", server.uri()),
+        RequestInit::default(),
+        Some(FetchOptions {
+            connect_timeout_ms: None,
+            timeout: Some(TimeoutOptions { timeout_ms: 5000 }),
+            retry: None,
+        }),
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("follows by default");
+
+    assert_eq!(response.status, 200, "default behaviour must be unchanged");
 }

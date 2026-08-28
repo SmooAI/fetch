@@ -76,6 +76,7 @@ async fn test_builder_with_default_headers() {
             method: Method::GET,
             headers: default_headers,
             body: None,
+            follow_redirects: None,
         })
         .build();
 
@@ -218,6 +219,7 @@ async fn test_builder_merge_headers() {
             method: Method::GET,
             headers: default_headers,
             body: None,
+            follow_redirects: None,
         })
         .build();
 
@@ -229,6 +231,7 @@ async fn test_builder_merge_headers() {
         method: Method::GET,
         headers: request_headers,
         body: None,
+        follow_redirects: None,
     };
 
     let response = client.fetch(&url, init).await.unwrap();
@@ -262,6 +265,7 @@ async fn test_builder_post_with_body() {
         method: Method::POST,
         headers,
         body: Some(r#"{"name":"test"}"#.to_string()),
+        follow_redirects: None,
     };
 
     let response = client.fetch(&url, init).await.unwrap();

@@ -174,12 +174,16 @@ async fn do_single_request<T: DeserializeOwned>(
     init: &RequestInit,
     connect_timeout_ms: Option<u64>,
 ) -> Result<FetchResponse<T>, FetchError> {
-    let client = match connect_timeout_ms {
-        Some(ms) => reqwest::Client::builder()
-            .connect_timeout(Duration::from_millis(ms))
-            .build()?,
-        None => reqwest::Client::new(),
-    };
+    let mut client_builder = reqwest::Client::builder();
+    if let Some(ms) = connect_timeout_ms {
+        client_builder = client_builder.connect_timeout(Duration::from_millis(ms));
+    }
+    if init.follow_redirects == Some(false) {
+        // Per-client, not per-request, in reqwest — which is why a caller could
+        // not previously express this without building its own client.
+        client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
+    }
+    let client = client_builder.build()?;
 
     let mut request_builder = client.request(init.method.to_reqwest(), url);
 
@@ -246,7 +250,14 @@ async fn do_single_request<T: DeserializeOwned>(
 
     let fetch_response = FetchResponse::new(status, status_text, headers, body, is_json, data);
 
-    if fetch_response.ok {
+    // A 3xx when the caller opted OUT of following is the answer, not a
+    // failure — they asked to see the redirect. Honouring `follow_redirects`
+    // without this leaves the option useless: reqwest returns the 302, and it
+    // is then raised as an `HttpResponse` error because it is not 2xx.
+    let is_unfollowed_redirect =
+        init.follow_redirects == Some(false) && (300..400).contains(&(status as u32));
+
+    if fetch_response.ok || is_unfollowed_redirect {
         Ok(fetch_response)
     } else {
         Err(FetchError::from_response(&fetch_response, None))

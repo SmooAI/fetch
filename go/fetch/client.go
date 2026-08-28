@@ -27,9 +27,13 @@ type Client struct {
 	rateLimiter    *SlidingWindowRateLimiter
 	rateLimitRetry *RateLimitRetryOptions
 	circuitBreaker *CircuitBreaker
-	hooks          *LifecycleHooks
-	authProvider   AuthTokenProvider
-	authScheme     string
+	// followRedirects is nil when unset (follow, the net/http default). Kept on
+	// the Client so the success check below can tell a deliberately-unfollowed
+	// 3xx from an unexpected one.
+	followRedirects *bool
+	hooks           *LifecycleHooks
+	authProvider    AuthTokenProvider
+	authScheme      string
 }
 
 // transportWithConnectTimeout clones the default transport (preserving proxy,
@@ -314,7 +318,13 @@ func executeHTTPRequest[T any](
 	}
 
 	// Parse response
-	isOK := resp.StatusCode >= 200 && resp.StatusCode < 300
+	// A 3xx when the caller opted OUT of following is the answer, not a
+	// failure — they asked to see the redirect. Without this, honouring
+	// WithFollowRedirects(false) leaves the option useless: the 302 comes back
+	// and is immediately raised as an HTTP error because it is not 2xx.
+	unfollowedRedirect := client.followRedirects != nil && !*client.followRedirects &&
+		resp.StatusCode >= 300 && resp.StatusCode < 400
+	isOK := (resp.StatusCode >= 200 && resp.StatusCode < 300) || unfollowedRedirect
 	isJSON := false
 	contentType := resp.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {

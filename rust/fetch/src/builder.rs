@@ -371,6 +371,10 @@ impl<T: DeserializeOwned + Clone + Send + 'static> FetchClient<T> {
                     method: init.method,
                     headers: merged_headers,
                     body: init.body.or_else(|| default.body.clone()),
+                    // Per-request wins, but only when it SAYS something —
+                    // `None` inherits, so a client default of `Some(false)`
+                    // survives a per-request `..Default::default()`.
+                    follow_redirects: init.follow_redirects.or(default.follow_redirects),
                 }
             }
             None => init,
