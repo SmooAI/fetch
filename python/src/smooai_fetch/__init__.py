@@ -4,7 +4,7 @@ A resilient HTTP fetch client with retries, timeouts, rate limiting,
 and circuit breaking.
 """
 
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 
 # Core client
 # Builder
