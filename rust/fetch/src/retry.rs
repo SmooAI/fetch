@@ -7,12 +7,48 @@ use rand::Rng;
 use tracing;
 
 use crate::error::FetchError;
-use crate::types::{RetryContext, RetryDecision, RetryOptions};
+use crate::types::{Method, RequestInit, RetryContext, RetryDecision, RetryOptions};
 
 /// Determine if a given status code is retryable.
 /// 429 (Too Many Requests) and 5xx are retryable.
 pub fn is_retryable(status: u16) -> bool {
     status == 429 || status >= 500
+}
+
+/// The header that lets a single non-idempotent request opt in to retries.
+///
+/// A server that honours it (draft-ietf-httpapi-idempotency-key-header — Stripe,
+/// Adyen, most payment APIs) deduplicates replays carrying the same key, which
+/// is exactly what makes a retried POST safe.
+pub const IDEMPOTENCY_KEY_HEADER: &str = "Idempotency-Key";
+
+/// Whether `method` is idempotent per RFC 9110 §9.2.2 — i.e. sending it twice
+/// has the same effect on the server as sending it once.
+///
+/// GET, HEAD, OPTIONS, PUT and DELETE are; POST and PATCH are not. (TRACE is
+/// idempotent too, and CONNECT is not, but [`Method`] cannot express either.)
+pub fn is_idempotent_method(method: &Method) -> bool {
+    match method {
+        Method::GET | Method::HEAD | Method::OPTIONS | Method::PUT | Method::DELETE => true,
+        Method::POST | Method::PATCH => false,
+    }
+}
+
+/// Whether a failed attempt of this request may be retried at all.
+///
+/// True when the method is idempotent, when the caller opted in with
+/// [`RetryOptions::allow_non_idempotent`], or when the request carries a
+/// non-empty `Idempotency-Key` header (matched case-insensitively). Otherwise
+/// the request makes exactly one attempt, whatever the error — a timeout, a
+/// 5xx or a 429 with `Retry-After` — because the first attempt may already have
+/// had its side effect (SMOODEV-3375: a slow image-generation POST billed three
+/// images and returned none).
+pub fn is_retry_eligible(init: &RequestInit, options: &RetryOptions) -> bool {
+    is_idempotent_method(&init.method)
+        || options.allow_non_idempotent
+        || init.headers.iter().any(|(name, value)| {
+            name.eq_ignore_ascii_case(IDEMPOTENCY_KEY_HEADER) && !value.trim().is_empty()
+        })
 }
 
 /// Calculate the backoff delay for a given attempt using exponential backoff with jitter.
@@ -200,6 +236,40 @@ mod tests {
         assert!(!is_retryable(404));
     }
 
+    fn init(method: Method, headers: &[(&str, &str)]) -> RequestInit {
+        RequestInit {
+            method,
+            headers: headers
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            body: None,
+        }
+    }
+
+    #[test]
+    fn test_retry_eligibility() {
+        let opts = RetryOptions::default();
+        assert!(!opts.allow_non_idempotent, "default must not retry POST");
+        assert!(is_retry_eligible(&init(Method::GET, &[]), &opts));
+        assert!(is_retry_eligible(&init(Method::DELETE, &[]), &opts));
+        assert!(!is_retry_eligible(&init(Method::POST, &[]), &opts));
+        assert!(!is_retry_eligible(&init(Method::PATCH, &[]), &opts));
+        assert!(is_retry_eligible(
+            &init(Method::POST, &[("idempotency-key", "k")]),
+            &opts
+        ));
+        assert!(!is_retry_eligible(
+            &init(Method::POST, &[("Idempotency-Key", " ")]),
+            &opts
+        ));
+        let opted_in = RetryOptions {
+            allow_non_idempotent: true,
+            ..Default::default()
+        };
+        assert!(is_retry_eligible(&init(Method::PATCH, &[]), &opted_in));
+    }
+
     #[test]
     fn test_calculate_backoff_attempt_0() {
         let options = RetryOptions {
@@ -210,6 +280,7 @@ mod tests {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         let delay = calculate_backoff(0, &options);
         // base * factor^0 = 500 * 1 = 500
@@ -226,6 +297,7 @@ mod tests {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         let delay = calculate_backoff(1, &options);
         // base * factor^1 = 500 * 2 = 1000
@@ -242,6 +314,7 @@ mod tests {
             max_interval_ms: Some(800),
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         let delay = calculate_backoff(2, &options);
         // base * factor^2 = 500 * 4 = 2000, capped at 800
@@ -258,6 +331,7 @@ mod tests {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         // With jitter=0.5, delay should be between 500 and 1500
         for _ in 0..100 {
@@ -277,6 +351,7 @@ mod tests {
             max_interval_ms: None,
             fast_first: true,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         let err = FetchError::Timeout { timeout_ms: 1000 };
         // attempt 0 (first retry) with fast_first=true → zero delay
@@ -295,6 +370,7 @@ mod tests {
             max_interval_ms: None,
             fast_first: true,
             on_rejection: None,
+            allow_non_idempotent: false,
         };
         let mut headers = std::collections::HashMap::new();
         headers.insert("retry-after".to_string(), "3".to_string());

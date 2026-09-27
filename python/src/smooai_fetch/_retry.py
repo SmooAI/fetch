@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any, TypeVar
 
 from smooai_fetch._errors import HTTPResponseError, RetryError
 from smooai_fetch._types import (
@@ -16,6 +16,42 @@ from smooai_fetch._types import (
 )
 
 T = TypeVar("T")
+
+IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+"""Header whose non-empty presence makes a non-idempotent request retry-eligible.
+
+A server honouring it (draft-ietf-httpapi-idempotency-key-header) deduplicates
+replays, so re-sending the request cannot repeat its side effect.
+"""
+
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
+
+
+def is_idempotent_method(method: str) -> bool:
+    """Whether ``method`` is idempotent per RFC 9110 section 9.2.2 (case-insensitive).
+
+    GET, HEAD, OPTIONS, TRACE, PUT and DELETE are. POST, PATCH, CONNECT and any
+    unrecognised method are not: re-sending them can repeat a side effect.
+    """
+    return method.upper() in _IDEMPOTENT_METHODS
+
+
+def _has_idempotency_key(headers: Mapping[str, Any] | None) -> bool:
+    if not headers:
+        return False
+    target = IDEMPOTENCY_KEY_HEADER.lower()
+    return any(str(key).lower() == target and str(value).strip() != "" for key, value in headers.items())
+
+
+def is_retry_eligible(method: str, headers: Mapping[str, Any] | None, options: RetryOptions) -> bool:
+    """Whether a failed attempt of this request may be retried at all (SMOODEV-3375).
+
+    Retrying re-sends the request, so it is only safe when doing so cannot
+    duplicate a side effect: the method is idempotent, the request carries a
+    non-empty ``Idempotency-Key`` the server can deduplicate on, or the caller
+    explicitly opted in with ``RetryOptions.allow_non_idempotent``.
+    """
+    return is_idempotent_method(method) or options.allow_non_idempotent or _has_idempotency_key(headers)
 
 
 def calculate_backoff(attempt: int, options: RetryOptions) -> float:

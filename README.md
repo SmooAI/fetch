@@ -50,8 +50,8 @@ Traditional `fetch` gives you the request, but leaves you to handle the reality 
 
 One resilient HTTP client, ported natively to five languages. Every port carries the same core behaviors — verified against the source of each port, not aspirational:
 
-- 🔄 **Smart retries** — exponential backoff with jitter to prevent thundering herds; retries only on network errors and retryable statuses
-- ⏱️ **Automatic timeouts** — never hang indefinitely on slow endpoints (10s default, configurable per request)
+- 🔄 **Smart retries** — exponential backoff with jitter to prevent thundering herds; retries only on network errors and retryable statuses, and **only for idempotent methods** unless you opt in — a retry never duplicates a POST
+- ⏱️ **Automatic timeouts** — never hang indefinitely on slow endpoints (10s default, configurable per request); a timed-out attempt is cancelled, not abandoned
 - 🚦 **Rate-limit respect** — reads `Retry-After` headers and waits exactly what the server asked, plus a client-side sliding-window rate limiter
 - 🔌 **Circuit breaking** — stop hammering services that are clearly down
 - 🔗 **Lifecycle hooks** — pre-request / post-response hooks for auth, logging, and metrics
@@ -63,14 +63,15 @@ One resilient HTTP client, ported natively to five languages. Every port carries
 
 Each capability in a few lines of real, current API — snippets are verified against [`src/`](./src/) and the language ports, not pseudocode.
 
-|     | Capability                                           | What you get                                           |
-| --- | ---------------------------------------------------- | ------------------------------------------------------ |
-| 🔄  | [**Smart retries**](#-smart-retries)                 | Backoff + jitter, only on errors worth retrying        |
-| 🚦  | [**Rate-limit respect**](#-rate-limit-respect)       | `Retry-After` honored to the second, in all five ports |
-| 🔌  | [**Circuit breaking**](#-circuit-breaking)           | Fail fast when a dependency is down                    |
-| 🎯  | [**Typed responses**](#-typed-responses--validation) | Schema-validated data, typed end to end                |
-| 🔗  | [**Hooks + auth**](#-lifecycle-hooks--auth)          | One place for tokens, logging, and response policy     |
-| 📡  | [**Trace propagation**](#-trace-context-propagation) | `traceparent` on every request, optional OpenTelemetry |
+|     | Capability                                                  | What you get                                           |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| 🔄  | [**Smart retries**](#-smart-retries)                        | Backoff + jitter, only on errors worth retrying        |
+| 🧯  | [**Safe retries**](#-retries-never-duplicate-a-side-effect) | Never re-sends a POST unless you opt in                |
+| 🚦  | [**Rate-limit respect**](#-rate-limit-respect)              | `Retry-After` honored to the second, in all five ports |
+| 🔌  | [**Circuit breaking**](#-circuit-breaking)                  | Fail fast when a dependency is down                    |
+| 🎯  | [**Typed responses**](#-typed-responses--validation)        | Schema-validated data, typed end to end                |
+| 🔗  | [**Hooks + auth**](#-lifecycle-hooks--auth)                 | One place for tokens, logging, and response policy     |
+| 📡  | [**Trace propagation**](#-trace-context-propagation)        | `traceparent` on every request, optional OpenTelemetry |
 
 ### 🔄 Smart retries
 
@@ -87,6 +88,36 @@ const response = await fetch('https://flaky-api.com/data');
 ```
 
 Defaults (TypeScript): 2 automatic retries, exponential backoff starting at 500ms with factor 2, jitter to prevent thundering herds, and retries only on network errors or retryable HTTP statuses.
+
+### 🧯 Retries never duplicate a side effect
+
+**Changed in 4.0.0.** Only idempotent methods are retried: `GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT` and `DELETE` ([RFC 9110 §9.2.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2)). A `POST` or `PATCH` that timed out or got a 429/5xx may already have done its work on the server — re-sending it bills a second image, sends a second message, charges a card twice. So by default it makes **exactly one attempt** and you get its own error (`HTTPResponseError` / `TimeoutError`), not a `RetryError`.
+
+Opt a request back in when a duplicate is harmless, in one of two ways:
+
+```typescript
+// 1. Best: send an Idempotency-Key the server deduplicates on. Any request carrying a
+//    non-empty one is retry-eligible, whatever its method.
+await fetch('https://api.example.com/charges', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(charge),
+});
+
+// 2. Explicitly: the endpoint tolerates duplicates.
+await fetch('https://api.example.com/search', {
+    method: 'POST',
+    body: JSON.stringify(query),
+    options: { retry: { allowNonIdempotent: true } },
+});
+```
+
+The same rule holds in every port (`allow_non_idempotent` in Python and Rust, `AllowNonIdempotent` in Go and .NET) and is pinned by the shared [`spec/retry-idempotency-corpus.json`](spec/retry-idempotency-corpus.json), which each suite runs against a real local server and counts what the **server** received.
+
+- **429 + `Retry-After` on a POST is not retried either** unless you opt in. `Retry-After` says when the server will take a request again, not that the first one did nothing.
+- **`onRejection` cannot override this.** An ineligible request never consults it; opting in is the only switch.
+- **The client-side rate limiter is unaffected**: it rejects before anything is sent, so its own retry loop still applies to every method.
+- **Timeouts cancel the attempt.** When the per-attempt timeout fires, the request is aborted and its connection closed — before any retry — so the server can see the cancel. (Before 4.0.0 the TypeScript timeout only raced the request, leaving it running server-side while the retry sent it again.)
 
 ### 🚦 Rate-limit respect
 
@@ -203,10 +234,10 @@ flowchart LR
 | TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                     |
 | Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                   |
 | Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                     |
-| Go         | `github.com/SmooAI/fetch/go/fetch/v3`                          | `go get github.com/SmooAI/fetch/go/fetch/v3` |
+| Go         | `github.com/SmooAI/fetch/go/fetch/v4`                          | `go get github.com/SmooAI/fetch/go/fetch/v4` |
 | .NET       | [`SmooAI.Fetch`](https://www.nuget.org/packages/SmooAI.Fetch)  | `dotnet add package SmooAI.Fetch`            |
 
-> **Go note:** the module path carries the `/v3` major suffix Go requires above v1, so the `go/fetch/v3.x` tags resolve. The import path is `github.com/SmooAI/fetch/go/fetch/v3`; the package identifier is still `fetch`. Tags minted before this change (through `go/fetch/v3.4.0`) point at commits whose `go.mod` lacked the suffix and will not resolve — use `v3.4.1` or later.
+> **Go note:** the module path carries the `/v4` major suffix Go requires above v1 (it was `/v3` before 4.0.0), so the `go/fetch/v4.x` tags resolve. The import path is `github.com/SmooAI/fetch/go/fetch/v4`; the package identifier is still `fetch`. Tags minted before this change (through `go/fetch/v3.4.0`) point at commits whose `go.mod` lacked the suffix and will not resolve — use `v3.4.1` or later.
 
 Language-specific source lives in [`src/`](./src/) (TypeScript), [`python/`](./python/), [`rust/`](./rust/), [`go/`](./go/), and [`dotnet/`](./dotnet/).
 
@@ -312,9 +343,9 @@ Where a port leans on a battle-tested ecosystem library (mollitia, Polly), it sa
 
 Out of the box, `@smooai/fetch` is configured for the real world:
 
-**Retry strategy** — 2 automatic retries, exponential backoff (500ms → 1s → 2s), jitter to prevent thundering herds, and retries only on network errors or retryable responses.
+**Retry strategy** — 2 automatic retries, exponential backoff (500ms → 1s → 2s), jitter to prevent thundering herds, and retries only on network errors or retryable responses — for idempotent methods only, unless a request opts in ([details](#-retries-never-duplicate-a-side-effect)).
 
-**Timeout protection** — 10-second default timeout, configurable per request, so requests never hang indefinitely.
+**Timeout protection** — 10-second default per-attempt timeout, configurable per request, so requests never hang indefinitely. When it fires, the attempt is aborted and its connection closed.
 
 **Connect timeout (opt-in)** — `connectTimeoutMs` / `withConnectTimeout` bounds only the connection-establishment phase, in all five ports. A black-holed connect then fails in ~that window and retry lands on a live endpoint, instead of burning the whole-request timeout on a dead one; slow-but-alive handlers are unaffected. Off by default. In TypeScript it needs the optional peer dependency `undici` and applies to Node only.
 

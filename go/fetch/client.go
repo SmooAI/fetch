@@ -96,9 +96,28 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 		hooks = client.hooks
 	}
 
+	// Retry-eligibility, seeded from what is known before any hook runs and
+	// refined by every attempt once hooks and the auth provider have shaped the
+	// final request (see retryGate).
+	gate := &retryGate{opts: retryOpts}
+	{
+		preHook := make(http.Header)
+		for key, vals := range client.baseHeaders {
+			for _, v := range vals {
+				preHook.Set(key, v)
+			}
+		}
+		for key, vals := range extraHeaders {
+			for _, v := range vals {
+				preHook.Set(key, v)
+			}
+		}
+		gate.eligible.Store(isRetryEligible(method, preHook, retryOpts))
+	}
+
 	// Build the core request-execute function
 	doRequest := func(ctx context.Context) (*FetchResponse[T], error) {
-		return executeHTTPRequest[T](ctx, client, method, url, body, extraHeaders, hooks, validate)
+		return executeHTTPRequest[T](ctx, client, method, url, body, extraHeaders, hooks, validate, gate)
 	}
 
 	// Wrap with timeout if configured
@@ -146,10 +165,18 @@ func Fetch[T any](ctx context.Context, client *Client, method, url string, body 
 		}
 	}
 
-	// Wrap with retry if configured
+	// Wrap with retry if configured. A request that is not retry-eligible
+	// (non-idempotent, no opt-in, no Idempotency-Key) makes exactly one attempt
+	// and surfaces the underlying error: re-sending a POST that timed out or got
+	// a 429/5xx can execute its side effect twice. Rejections raised before
+	// anything was sent (rate limiter, open breaker) stay retryable.
 	if retryOpts != nil && retryOpts.Attempts > 0 {
 		return ExecuteWithRetry(ctx, *retryOpts, func(ctx context.Context) (*FetchResponse[T], error) {
-			return doRequest(ctx)
+			result, err := doRequest(ctx)
+			if err != nil && !gate.eligible.Load() && !isPreSendRejection(err) {
+				return nil, &notRetryEligibleError{err: err}
+			}
+			return result, err
 		})
 	}
 
@@ -209,6 +236,7 @@ func executeHTTPRequest[T any](
 	extraHeaders http.Header,
 	hooks *LifecycleHooks,
 	validate func(data any) []string,
+	gate *retryGate,
 ) (*FetchResponse[T], error) {
 	// Prepare body
 	var bodyReader io.Reader
@@ -283,6 +311,9 @@ func executeHTTPRequest[T any](
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("%s %s", scheme, token))
 	}
+
+	// The request is final now: hooks and the auth provider have run.
+	gate.record(req)
 
 	// Execute the HTTP request
 	httpClient := client.httpClient

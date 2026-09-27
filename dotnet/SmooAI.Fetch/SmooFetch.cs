@@ -24,6 +24,7 @@ public sealed class SmooFetch
     private readonly SmooFetchOptions _options;
     private readonly ILogger<SmooFetch> _logger;
     private readonly ResiliencePipeline<HttpResponseMessage> _pipeline;
+    private readonly ResiliencePipeline<HttpResponseMessage> _noRetryPipeline;
     private readonly SlidingWindowLimiterAdapter? _rateLimiter;
 
     /// <summary>Constant used when registering the typed client with <see cref="IHttpClientFactory"/>.</summary>
@@ -35,16 +36,37 @@ public sealed class SmooFetch
         _ownsHttpClient = ownsHttpClient;
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? NullLogger<SmooFetch>.Instance;
-        _pipeline = BuildPipeline(options);
+        (_pipeline, _noRetryPipeline) = BuildPipelines(options);
         _rateLimiter = options.RateLimiter is { } rl ? new SlidingWindowLimiterAdapter(rl) : null;
     }
 
-    private static ResiliencePipeline<HttpResponseMessage> BuildPipeline(SmooFetchOptions options)
+    /// <summary>
+    /// Builds the pipeline for retry-eligible requests and the one for everything else.
+    /// Both share ONE circuit breaker instance, so a non-idempotent request still counts
+    /// towards (and is refused by) the same breaker — it just never gets a second attempt.
+    /// </summary>
+    private static (ResiliencePipeline<HttpResponseMessage> Retrying, ResiliencePipeline<HttpResponseMessage> NoRetry) BuildPipelines(SmooFetchOptions options)
     {
         var retryPipeline = options.RetryPolicy.BuildPipeline();
+        var breaker = BuildBreaker(options);
+        if (breaker is null)
+        {
+            return (retryPipeline, ResiliencePipeline<HttpResponseMessage>.Empty);
+        }
+
+        // Wrap the retry pipeline inside the breaker pipeline.
+        var retrying = new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddPipeline(breaker)
+            .AddPipeline(retryPipeline)
+            .Build();
+        return (retrying, breaker);
+    }
+
+    private static ResiliencePipeline<HttpResponseMessage>? BuildBreaker(SmooFetchOptions options)
+    {
         if (options.CircuitBreaker is not { } cb)
         {
-            return retryPipeline;
+            return null;
         }
 
         // Compose: caller -> circuit breaker -> retry -> http.
@@ -53,7 +75,7 @@ public sealed class SmooFetch
         // mirror the retry policy's failure predicate so the breaker trips on the
         // same conditions (retryable statuses + transient exceptions).
         var policy = options.RetryPolicy;
-        var breaker = new ResiliencePipelineBuilder<HttpResponseMessage>()
+        return new ResiliencePipelineBuilder<HttpResponseMessage>()
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
             {
                 FailureRatio = 1.0,
@@ -71,12 +93,6 @@ public sealed class SmooFetch
                     return ValueTask.FromResult(response is not null && policy.ShouldRetryStatus(response.StatusCode));
                 },
             })
-            .Build();
-
-        // Wrap the retry pipeline inside the breaker pipeline.
-        return new ResiliencePipelineBuilder<HttpResponseMessage>()
-            .AddPipeline(breaker)
-            .AddPipeline(retryPipeline)
             .Build();
     }
 
@@ -178,10 +194,18 @@ public sealed class SmooFetch
             await pre(request, cancellationToken).ConfigureAwait(false);
         }
 
+        // Retries are method-aware (RFC 9110 §9.2.2). A POST/PATCH that timed out or got a
+        // 429/5xx may already have executed server-side, so replaying it can duplicate its
+        // side effect. Decided on the FINAL request — after the auth provider and PreRequest
+        // hook, either of which can add an Idempotency-Key. An ineligible request makes
+        // exactly one attempt: OnRejection is not consulted and the underlying outcome
+        // surfaces as-is.
+        var pipeline = _options.RetryPolicy.IsRetryEligible(request) ? _pipeline : _noRetryPipeline;
+
         HttpResponseMessage response;
         try
         {
-            response = await _pipeline.ExecuteAsync(async ct =>
+            response = await pipeline.ExecuteAsync(async ct =>
             {
                 // Rate-limit gate: acquire a permit before dispatch. The limiter
                 // waits / queues until a permit is available, so retries are not
@@ -192,6 +216,10 @@ public sealed class SmooFetch
                     await _rateLimiter.AcquireAsync(request, ct).ConfigureAwait(false);
                 }
 
+                // Per-ATTEMPT timeout, linked to the caller's token. When it fires, HttpClient
+                // aborts the in-flight request and closes its connection, so the server sees
+                // the cancel before any retry starts — a timed-out attempt is cancelled, not
+                // abandoned while a second copy runs alongside it.
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 linkedCts.CancelAfter(_options.Timeout);
                 var attemptRequest = await CloneRequestAsync(request).ConfigureAwait(false);

@@ -869,7 +869,14 @@ describe('Test fetch', () => {
             expect(response.ok).toBeTruthy();
             expect(response.status).toBe(200);
 
-            expect(mockFetch.mock.calls[0][1]?.signal).toBe(controller.signal);
+            // The caller's signal is combined with the per-attempt timeout signal,
+            // so it is not passed through by identity — but aborting it must
+            // still abort what fetch received.
+            const passedSignal = mockFetch.mock.calls[0][1]?.signal;
+            expect(passedSignal).toBeInstanceOf(AbortSignal);
+            expect(passedSignal!.aborted).toBe(false);
+            controller.abort();
+            expect(passedSignal!.aborted).toBe(true);
         });
 
         test('Test fetch with multiple init options combined', async () => {
@@ -905,7 +912,9 @@ describe('Test fetch', () => {
             expect(init?.mode).toBe('cors');
             expect(init?.redirect).toBe('follow');
             expect(init?.referrer).toBe('https://example.com');
-            expect(init?.signal).toBe(controller.signal);
+            expect(init?.signal).toBeInstanceOf(AbortSignal);
+            controller.abort();
+            expect(init?.signal?.aborted).toBe(true);
         });
     });
 

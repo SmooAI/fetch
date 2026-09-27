@@ -39,7 +39,7 @@ from smooai_fetch._rate_limit import SlidingWindowRateLimiter
 from smooai_fetch._response import FetchResponse
 
 # Retry utilities
-from smooai_fetch._retry import calculate_backoff, is_retryable
+from smooai_fetch._retry import IDEMPOTENCY_KEY_HEADER, calculate_backoff, is_idempotent_method, is_retryable
 
 # Types
 from smooai_fetch._types import (
@@ -99,7 +99,9 @@ __all__ = [
     "TimeoutError",
     # Utilities
     "calculate_backoff",
+    "is_idempotent_method",
     "is_retryable",
+    "IDEMPOTENCY_KEY_HEADER",
     "SlidingWindowRateLimiter",
     "CircuitBreaker",
 ]

@@ -131,6 +131,19 @@ class RetryOptions:
 
     Receives a `RetryContext` and returns an `OnRejectionDecision` that can
     override the default delay, skip the attempt, or abort retrying entirely.
+    Never consulted for a request that is not retry-eligible (see
+    `allow_non_idempotent`).
+    """
+
+    allow_non_idempotent: bool = False
+    """Allow retrying non-idempotent methods (POST, PATCH, ...). Default False.
+
+    By default only idempotent methods (GET, HEAD, OPTIONS, TRACE, PUT, DELETE)
+    are retried, because re-sending a POST that timed out or got a 429/5xx can
+    execute its side effect twice (a second charge, a duplicate message, a
+    second billed image). A request carrying a non-empty ``Idempotency-Key``
+    header is retried without this flag. Set it only when the endpoint is safe
+    to replay.
     """
 
 

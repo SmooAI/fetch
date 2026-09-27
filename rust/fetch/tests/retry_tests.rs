@@ -39,6 +39,7 @@ fn test_calculate_backoff_no_jitter() {
         max_interval_ms: None,
         fast_first: false,
         on_rejection: None,
+        allow_non_idempotent: false,
     };
 
     assert_eq!(calculate_backoff(0, &options), 100); // 100 * 2^0
@@ -57,6 +58,7 @@ fn test_calculate_backoff_with_max_interval() {
         max_interval_ms: Some(300),
         fast_first: false,
         on_rejection: None,
+        allow_non_idempotent: false,
     };
 
     assert_eq!(calculate_backoff(0, &options), 100);
@@ -75,6 +77,7 @@ fn test_calculate_backoff_with_jitter_is_bounded() {
         max_interval_ms: None,
         fast_first: false,
         on_rejection: None,
+        allow_non_idempotent: false,
     };
 
     for _ in 0..100 {
@@ -141,6 +144,7 @@ async fn test_retry_succeeds_after_failures() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         }),
     };
 
@@ -196,6 +200,7 @@ async fn test_retry_exhausted() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         }),
     };
 
@@ -253,6 +258,7 @@ async fn test_non_retryable_error_not_retried() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         }),
     };
 
@@ -304,6 +310,7 @@ async fn test_retry_with_retry_after_header() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         }),
     };
 
@@ -367,6 +374,7 @@ async fn test_fast_first_skips_initial_delay() {
             max_interval_ms: None,
             fast_first: true,
             on_rejection: None,
+            allow_non_idempotent: false,
         }),
     };
 
@@ -443,6 +451,7 @@ async fn test_on_rejection_retry_decision_overrides_delay() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: Some(callback),
+            allow_non_idempotent: false,
         }),
     };
 
@@ -502,6 +511,7 @@ async fn test_on_rejection_abort_stops_retry_loop() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: Some(callback),
+            allow_non_idempotent: false,
         }),
     };
 
@@ -552,6 +562,7 @@ async fn test_on_rejection_default_falls_through_to_exponential() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: Some(callback),
+            allow_non_idempotent: false,
         }),
     };
 
@@ -603,6 +614,7 @@ async fn test_on_rejection_skip_consumes_attempt_without_sleep() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: Some(callback),
+            allow_non_idempotent: false,
         }),
     };
 

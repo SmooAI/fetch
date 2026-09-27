@@ -73,6 +73,7 @@ async fn test_retry_with_timeout() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         })
         .build();
 
@@ -112,6 +113,7 @@ async fn test_circuit_breaker_with_retry() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         })
         .with_circuit_breaker(2, 1, 5000)
         .build();
@@ -281,6 +283,7 @@ async fn test_full_pipeline_success() {
             max_interval_ms: None,
             fast_first: false,
             on_rejection: None,
+            allow_non_idempotent: false,
         })
         .with_rate_limit(10, 60_000)
         .with_circuit_breaker(5, 2, 30_000)

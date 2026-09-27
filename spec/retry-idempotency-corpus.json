@@ -1,0 +1,115 @@
+{
+    "$comment": "Shared retry-safety corpus, loaded by all five ports — do not hand-copy these cases into a language's test file. Each port runs every `cases` entry against a REAL local HTTP server and asserts the number of requests the SERVER received, because the bug this guards against is a side effect executing more than once server-side, and only the server can count that.",
+    "$regression": "SMOODEV-3375. Retries were method-blind: a POST that timed out or got a 429/5xx was re-sent up to twice more. Image generation (20-50s) against a 10s per-attempt timeout billed three images and returned nothing, and any non-idempotent POST/PATCH (CRM writes, message sends, payments) could duplicate its side effect. On top of that the TypeScript timeout did not abort the in-flight request, so the server never saw the first attempt cancelled.",
+    "rule": "A failed attempt is retried only when the request is retry-eligible: its method is idempotent per RFC 9110 section 9.2.2, OR the caller set allowNonIdempotent on the retry options, OR the request carries an Idempotency-Key header (any casing) whose value is not empty or whitespace. An ineligible request makes exactly one attempt and surfaces the underlying error, not the retries-exhausted wrapper. The in-process rate limiter's own retry loop is unaffected: it rejects before anything is sent.",
+    "idempotencyKeyHeader": "Idempotency-Key",
+    "methods": {
+        "$comment": "Classification only. Compared case-insensitively. TRACE is idempotent but is not exercised against a server (fetch implementations forbid it); CONNECT and anything unrecognised are treated as non-idempotent. Ports whose method type cannot express a method here skip it.",
+        "idempotent": ["GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "get", "Put"],
+        "nonIdempotent": ["POST", "PATCH", "CONNECT", "post", "Patch", "PURGE"]
+    },
+    "retry": {
+        "$comment": "Retry knobs every case runs with. Tiny intervals and no jitter keep the suite fast and deterministic; `attempts` is the number of RETRIES, so an eligible request makes attempts + 1 = 3 calls.",
+        "attempts": 2,
+        "initialIntervalMs": 1,
+        "factor": 1,
+        "jitterAdjustment": 0
+    },
+    "timeoutMs": 300,
+    "cases": [
+        { "name": "GET 503 retries", "method": "GET", "respond": { "status": 503 }, "expectedAttempts": 3 },
+        { "name": "HEAD 503 retries", "method": "HEAD", "respond": { "status": 503 }, "expectedAttempts": 3 },
+        { "name": "OPTIONS 503 retries", "method": "OPTIONS", "respond": { "status": 503 }, "expectedAttempts": 3 },
+        { "name": "PUT 503 retries", "method": "PUT", "body": "{\"a\":1}", "respond": { "status": 503 }, "expectedAttempts": 3 },
+        { "name": "DELETE 503 retries", "method": "DELETE", "respond": { "status": 503 }, "expectedAttempts": 3 },
+        { "name": "POST 503 is not retried by default", "method": "POST", "body": "{\"a\":1}", "respond": { "status": 503 }, "expectedAttempts": 1 },
+        { "name": "PATCH 503 is not retried by default", "method": "PATCH", "body": "{\"a\":1}", "respond": { "status": 503 }, "expectedAttempts": 1 },
+        {
+            "name": "POST 503 retries when allowNonIdempotent is set",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "allowNonIdempotent": true,
+            "respond": { "status": 503 },
+            "expectedAttempts": 3
+        },
+        {
+            "name": "PATCH 503 retries when allowNonIdempotent is set",
+            "method": "PATCH",
+            "body": "{\"a\":1}",
+            "allowNonIdempotent": true,
+            "respond": { "status": 503 },
+            "expectedAttempts": 3
+        },
+        {
+            "name": "POST 503 retries when it carries an Idempotency-Key",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "headers": { "Idempotency-Key": "k-1" },
+            "respond": { "status": 503 },
+            "expectedAttempts": 3
+        },
+        {
+            "name": "Idempotency-Key is matched case-insensitively",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "headers": { "idempotency-key": "k-2" },
+            "respond": { "status": 503 },
+            "expectedAttempts": 3
+        },
+        {
+            "name": "an empty Idempotency-Key does not opt in",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "headers": { "Idempotency-Key": "" },
+            "respond": { "status": 503 },
+            "expectedAttempts": 1
+        },
+        {
+            "name": "a whitespace-only Idempotency-Key does not opt in",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "headers": { "Idempotency-Key": "   " },
+            "respond": { "status": 503 },
+            "expectedAttempts": 1
+        },
+        {
+            "name": "POST 429 with Retry-After is still not retried by default",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "respond": { "status": 429, "headers": { "Retry-After": "0" } },
+            "expectedAttempts": 1
+        },
+        {
+            "name": "POST 429 with Retry-After retries when opted in",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "allowNonIdempotent": true,
+            "respond": { "status": 429, "headers": { "Retry-After": "0" } },
+            "expectedAttempts": 3
+        },
+        { "name": "GET 429 with Retry-After retries", "method": "GET", "respond": { "status": 429, "headers": { "Retry-After": "0" } }, "expectedAttempts": 3 },
+        { "name": "GET that times out is retried", "method": "GET", "respond": { "hang": true }, "expectedAttempts": 3 },
+        { "name": "POST that times out is not retried", "method": "POST", "body": "{\"a\":1}", "respond": { "hang": true }, "expectedAttempts": 1 },
+        {
+            "name": "POST that times out retries when opted in",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "allowNonIdempotent": true,
+            "respond": { "hang": true },
+            "expectedAttempts": 3
+        },
+        {
+            "name": "POST 400 is never retried",
+            "method": "POST",
+            "body": "{\"a\":1}",
+            "allowNonIdempotent": true,
+            "respond": { "status": 400 },
+            "expectedAttempts": 1
+        }
+    ],
+    "timeoutAbort": {
+        "$comment": "A timed-out attempt must be CANCELLED, not abandoned: the connection is closed, so the server can see it and stop work. The test server accepts the request and never answers; it asserts the first attempt's connection closes within timeoutMs + closeSlackMs of the request arriving, and — for a retried GET — that it closed before the second attempt arrived. Without cancellation the socket stays open until the process exits.",
+        "timeoutMs": 300,
+        "closeSlackMs": 1500
+    }
+}
