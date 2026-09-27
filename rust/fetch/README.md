@@ -120,6 +120,43 @@ let response = fetch::<serde_json::Value>("https://api.github.com/user/repos", i
 // - Your code continues normally
 ```
 
+### Retries Never Duplicate a Side Effect
+
+Since 4.0.0, only requests that are safe to send twice are retried. A retry
+re-executes the request on the server, so a POST that timed out after the server
+started work — or came back 5xx/429 — may already have created the record, sent
+the message or charged the card.
+
+- **Retried by default:** `GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE` (idempotent
+  per RFC 9110 §9.2.2).
+- **Never retried by default:** `POST`, `PATCH` — they make exactly one attempt
+  and return the underlying error (`FetchError::HttpResponse`,
+  `FetchError::Timeout`, …), not `FetchError::Retry`. That includes a **429 with
+  `Retry-After`**: the rejected POST is not re-sent unless you opt in.
+- **Opting in**, when the endpoint tolerates duplicates or deduplicates them:
+
+```rust
+use smooai_fetch::types::RetryOptions;
+
+// Every request through this client, including POST/PATCH:
+let client = FetchBuilder::<serde_json::Value>::new()
+    .with_retry(RetryOptions { allow_non_idempotent: true, ..Default::default() })
+    .build();
+
+// Or just this request: an `Idempotency-Key` header (any casing, non-empty)
+// lets a server that honours it deduplicate the replay.
+let mut init = RequestInit { method: Method::POST, body: Some(body), ..Default::default() };
+init.headers.insert(smooai_fetch::IDEMPOTENCY_KEY_HEADER.to_string(), key);
+```
+
+The check runs after the pre-request hook and auth provider, so a hook can add
+the header. `is_idempotent_method` and `is_retry_eligible` are exported if you
+need the same decision elsewhere.
+
+**Timeouts cancel the attempt.** When an attempt times out, its request future is
+dropped, which closes the connection — the server sees the cancel before any
+retry is sent, instead of the abandoned request running on beside it.
+
 ### Production-Ready Examples
 
 #### FetchBuilder Pattern
@@ -283,12 +320,15 @@ Out of the box, smooai-fetch is configured for the real world:
 - 2 automatic retries on failure
 - Exponential backoff: 500ms -> 1s -> 2s
 - Jitter to prevent thundering herds
-- Only retries on network errors, timeouts, or 5xx responses
+- Only retries on network errors, timeouts, 429, or 5xx responses
+- Only retries idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE) — POST and
+  PATCH need `allow_non_idempotent` or an `Idempotency-Key` header
 
 **Timeout Protection:**
 
 - 10-second default timeout
 - Prevents indefinite hangs on slow endpoints
+- A timed-out attempt is cancelled (its connection closed), not abandoned
 - Configurable per request or per client
 
 **Rate Limit Handling:**

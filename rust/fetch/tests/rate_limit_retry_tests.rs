@@ -43,6 +43,7 @@ async fn test_rate_limit_retry_recovers() {
         max_interval_ms: Some(40),
         fast_first: true,
         on_rejection: None,
+        allow_non_idempotent: false,
     };
 
     // limit=1 over the window. The first request burns the slot.
@@ -100,6 +101,7 @@ async fn test_rate_limit_retry_exhausts() {
         max_interval_ms: Some(10),
         fast_first: false,
         on_rejection: None,
+        allow_non_idempotent: false,
     };
 
     let client = FetchBuilder::<TestData>::new()

@@ -136,6 +136,62 @@ public sealed record RetryPolicy
     /// </summary>
     public OnRejectionCallback? OnRejection { get; init; }
 
+    /// <summary>
+    /// Header that, when present with a non-empty value, makes a non-idempotent request
+    /// (POST, PATCH) retry-eligible: the caller is telling the server to de-duplicate
+    /// replays, so re-sending it cannot double the side effect.
+    /// </summary>
+    public const string IdempotencyKeyHeader = "Idempotency-Key";
+
+    /// <summary>
+    /// Allow retrying non-idempotent requests (POST, PATCH, anything not idempotent per
+    /// RFC 9110 §9.2.2). Defaults to <c>false</c>: a POST that times out or gets a 429/5xx
+    /// may already have executed server-side, so re-sending it can duplicate the side
+    /// effect (a second charge, a second message, a second generated image). Set this only
+    /// when the endpoint is safe to replay; alternatively send an
+    /// <see cref="IdempotencyKeyHeader"/> header, which opts that one request in.
+    /// A 429 with <c>Retry-After</c> on a POST is not retried unless opted in either.
+    /// </summary>
+    public bool AllowNonIdempotent { get; init; }
+
+    private static readonly HashSet<string> IdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE",
+    };
+
+    /// <summary>
+    /// Whether <paramref name="method"/> is idempotent per RFC 9110 §9.2.2 (GET, HEAD,
+    /// OPTIONS, TRACE, PUT, DELETE), compared case-insensitively. Anything else — POST,
+    /// PATCH, CONNECT, or an unrecognised method — is treated as non-idempotent.
+    /// </summary>
+    public static bool IsIdempotentMethod(string method) =>
+        !string.IsNullOrEmpty(method) && IdempotentMethods.Contains(method);
+
+    /// <inheritdoc cref="IsIdempotentMethod(string)"/>
+    public static bool IsIdempotentMethod(HttpMethod method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        return IsIdempotentMethod(method.Method);
+    }
+
+    /// <summary>
+    /// Whether a failed attempt of <paramref name="request"/> may be retried: its method is
+    /// idempotent, OR <see cref="AllowNonIdempotent"/> is set, OR it carries a non-empty
+    /// <see cref="IdempotencyKeyHeader"/>. Evaluated on the final request, after the auth
+    /// provider and <c>PreRequest</c> hook have run (either can add the header).
+    /// </summary>
+    public bool IsRetryEligible(HttpRequestMessage request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (IsIdempotentMethod(request.Method) || AllowNonIdempotent)
+        {
+            return true;
+        }
+
+        return request.Headers.TryGetValues(IdempotencyKeyHeader, out var values)
+            && values.Any(v => !string.IsNullOrWhiteSpace(v));
+    }
+
     private static readonly IReadOnlyCollection<HttpStatusCode> DefaultRetryStatusCodes = new[]
     {
         HttpStatusCode.RequestTimeout,
@@ -149,7 +205,10 @@ public sealed record RetryPolicy
     /// <summary>A retry policy that never retries.</summary>
     public static RetryPolicy None { get; } = new() { MaxRetries = 0 };
 
-    /// <summary>Default policy: 2 retries, 500 ms base, exponential factor 2, jitter ±50%, honors Retry-After.</summary>
+    /// <summary>
+    /// Default policy: 2 retries, 500 ms base, exponential factor 2, jitter ±50%, honors
+    /// Retry-After — for idempotent requests only (see <see cref="AllowNonIdempotent"/>).
+    /// </summary>
     public static RetryPolicy Default { get; } = new()
     {
         MaxRetries = 2,

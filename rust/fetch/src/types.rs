@@ -87,6 +87,30 @@ pub struct RetryOptions {
     /// callback can override the default delay, skip the attempt, or abort
     /// retrying entirely.
     pub on_rejection: Option<RetryCallback>,
+    /// Allow retrying non-idempotent requests (`POST`, `PATCH`). Defaults to
+    /// `false`.
+    ///
+    /// Retrying a request whose side effect already happened executes it
+    /// again: a POST that times out after the server started work, or gets a
+    /// 5xx/429 back, may already have created the record, sent the message or
+    /// charged the card. So by default only methods RFC 9110 §9.2.2 calls
+    /// idempotent (GET, HEAD, OPTIONS, PUT, DELETE) are retried, and a
+    /// POST/PATCH makes exactly one attempt — even on a 429 with
+    /// `Retry-After`.
+    ///
+    /// Set this to `true` only when the endpoint tolerates duplicates, or send
+    /// an `Idempotency-Key` header instead, which opts that one request in and
+    /// lets the server deduplicate. See [`crate::retry::is_retry_eligible`].
+    pub allow_non_idempotent: bool,
+}
+
+impl Default for RetryOptions {
+    /// Same as [`crate::defaults::default_retry_options`]. Construct with
+    /// `RetryOptions { attempts: 5, ..Default::default() }` so a future field
+    /// does not break your code.
+    fn default() -> Self {
+        crate::defaults::default_retry_options()
+    }
 }
 
 impl std::fmt::Debug for RetryOptions {
@@ -99,6 +123,7 @@ impl std::fmt::Debug for RetryOptions {
             .field("max_interval_ms", &self.max_interval_ms)
             .field("fast_first", &self.fast_first)
             .field("on_rejection", &self.on_rejection.is_some())
+            .field("allow_non_idempotent", &self.allow_non_idempotent)
             .finish()
     }
 }

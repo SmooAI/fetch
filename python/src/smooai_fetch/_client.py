@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 from typing import Any, TypeVar
@@ -21,7 +22,7 @@ from smooai_fetch._errors import (
 from smooai_fetch._errors import TimeoutError as FetchTimeoutError
 from smooai_fetch._rate_limit import SlidingWindowRateLimiter
 from smooai_fetch._response import FetchResponse
-from smooai_fetch._retry import execute_with_retry, is_retryable
+from smooai_fetch._retry import execute_with_retry, is_retry_eligible, is_retryable
 from smooai_fetch._timeout import create_timeout
 from smooai_fetch._types import (
     FetchOptions,
@@ -265,6 +266,10 @@ async def fetch(
     Returns:
         A FetchResponse containing the parsed response data.
 
+    Only idempotent requests are retried: a POST/PATCH makes one attempt unless
+    ``RetryOptions.allow_non_idempotent`` is set or it carries a non-empty
+    ``Idempotency-Key`` header, and then raises its own error unwrapped.
+
     Raises:
         HTTPResponseError: For non-2xx responses (after retries exhausted).
         RetryError: When all retry attempts are exhausted.
@@ -335,15 +340,22 @@ async def fetch(
                 **request_kwargs,
                 "headers": _inject_trace_context(request_kwargs.get("headers") or {}),
             }
+            # httpx's timeout is per PHASE (connect/read/write/pool), so a server
+            # trickling bytes never trips it. `asyncio.timeout` bounds the whole
+            # attempt; on expiry it CANCELS the request coroutine, and leaving the
+            # per-attempt `AsyncClient` block closes the connection — so the server
+            # sees the attempt abandoned before any retry is sent, rather than the
+            # timed-out request running on beside it.
             try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.request(**attempt_kwargs)
-                return _parse_response(response, schema)
-            except httpx.TimeoutException as e:
+                async with asyncio.timeout(timeout_options.timeout_ms / 1000.0):
+                    async with httpx.AsyncClient() as client:
+                        response = await client.request(**attempt_kwargs)
+            except (httpx.TimeoutException, TimeoutError) as e:
                 raise FetchTimeoutError(
                     timeout_ms=timeout_options.timeout_ms,
                     url=current_url,
                 ) from e
+            return _parse_response(response, schema)
 
         async def _gated() -> FetchResponse[Any]:
             # Rate limit check
@@ -391,18 +403,31 @@ async def fetch(
         else:
             return await request_fn()
 
+    # Decided AFTER the pre-request hook and auth provider, which can change the
+    # method or add an Idempotency-Key header. An ineligible request (POST/PATCH
+    # without an opt-in) gets exactly one attempt and its own error, unwrapped:
+    # re-sending it could repeat its side effect (SMOODEV-3375).
+    retry_eligible = is_retry_eligible(
+        str(request_kwargs.get("method", "GET")),
+        request_kwargs.get("headers"),
+        retry_options,
+    )
+
     # Execute with error hook wrapping
     try:
-        # Wrap with retry logic
-        def should_retry(error: Exception, attempt: int) -> bool | float:
-            return _should_retry_default(error, attempt, retry_options)
+        if retry_eligible:
+            # Wrap with retry logic
+            def should_retry(error: Exception, attempt: int) -> bool | float:
+                return _should_retry_default(error, attempt, retry_options)
 
-        result = await execute_with_retry(
-            func=_execute,
-            options=retry_options,
-            should_retry=should_retry,
-            get_retry_after=_get_retry_after,
-        )
+            result = await execute_with_retry(
+                func=_execute,
+                options=retry_options,
+                should_retry=should_retry,
+                get_retry_after=_get_retry_after,
+            )
+        else:
+            result = await _execute()
     except Exception as error:
         # Apply post-response error hook
         if hooks and hooks.post_response_error:

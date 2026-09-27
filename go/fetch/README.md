@@ -58,7 +58,7 @@ Ever had a Go microservice pile up goroutines because a downstream API was down?
 ### Install
 
 ```bash
-go get github.com/SmooAI/fetch/go/fetch/v3
+go get github.com/SmooAI/fetch/go/fetch/v4
 ```
 
 | Language   | Package                                                        | Install                                      |
@@ -66,7 +66,7 @@ go get github.com/SmooAI/fetch/go/fetch/v3
 | TypeScript | [`@smooai/fetch`](https://www.npmjs.com/package/@smooai/fetch) | `pnpm add @smooai/fetch`                     |
 | Python     | [`smooai-fetch`](https://pypi.org/project/smooai-fetch/)       | `pip install smooai-fetch`                   |
 | Rust       | [`smooai-fetch`](https://crates.io/crates/smooai-fetch)        | `cargo add smooai-fetch`                     |
-| Go         | `github.com/SmooAI/fetch/go/fetch/v3`                          | `go get github.com/SmooAI/fetch/go/fetch/v3` |
+| Go         | `github.com/SmooAI/fetch/go/fetch/v4`                          | `go get github.com/SmooAI/fetch/go/fetch/v4` |
 
 ## The Power of Resilient Fetching
 
@@ -75,7 +75,7 @@ go get github.com/SmooAI/fetch/go/fetch/v3
 Watch how smooai-fetch handles common failure scenarios:
 
 ```go
-import "github.com/SmooAI/fetch/go/fetch/v3"
+import "github.com/SmooAI/fetch/go/fetch/v4"
 
 type ApiData struct {
     ID    string `json:"id"`
@@ -121,7 +121,7 @@ resp, err := fetch.Get[Repos](ctx, nil, "https://api.github.com/user/repos", nil
 
 ```go
 import (
-    "github.com/SmooAI/fetch/go/fetch/v3"
+    "github.com/SmooAI/fetch/go/fetch/v4"
     "time"
 )
 
@@ -174,7 +174,7 @@ fmt.Println("Created user:", resp.Data.ID)
 ```go
 import (
     "errors"
-    "github.com/SmooAI/fetch/go/fetch/v3"
+    "github.com/SmooAI/fetch/go/fetch/v4"
     "time"
 )
 
@@ -314,13 +314,51 @@ Out of the box, smooai-fetch is configured for the real world:
 - 2 automatic retries on failure
 - Exponential backoff: 500ms -> 1s -> 2s
 - Jitter to prevent thundering herds
-- Only retries on network errors or 5xx responses
+- Only retries on network errors, timeouts, 429 or 5xx responses
+- **Only idempotent methods are retried** (see below)
 
 **Timeout Protection:**
 
-- 10-second default timeout
+- 10-second default timeout, per attempt
 - Prevents indefinite hangs on slow endpoints
+- A timed-out attempt is **cancelled**, not abandoned: its context is cancelled, net/http closes the connection so the server sees the request go away, and the next attempt never overlaps it
 - Configurable per client or per request
+
+### Retries are method-aware (breaking in v4)
+
+Re-sending a request that timed out or failed with a 429/5xx is only safe when
+the request is idempotent — the server may already have acted on the first
+attempt. Before v4 a slow `POST` could execute up to three times server-side
+(three image generations billed, a message sent twice, a payment captured twice).
+
+A failed attempt is now retried only when the request is **retry-eligible**:
+
+- its method is idempotent per RFC 9110 §9.2.2 — `GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT`, `DELETE` (see `fetch.IsIdempotentMethod`), **or**
+- the retry options set `AllowNonIdempotent: true`, **or**
+- the request carries a non-empty `Idempotency-Key` header (`fetch.IdempotencyKeyHeader`), the server-side contract that makes a replay safe.
+
+`POST` and `PATCH` get exactly one attempt otherwise, and the error is the
+underlying `*HTTPResponseError` / `*TimeoutError` — not a `*RetryError`. That
+includes a `429` with `Retry-After`: the server asked the client to come back
+later, but without an opt-in the client cannot know the first attempt had no
+effect. A custom `OnRejection` callback is not an opt-in; it is not consulted
+for an ineligible request. Eligibility is decided on the final request, after
+`PreRequest` hooks and the auth-token provider run, so a hook can add the key.
+
+Rejections raised before anything is sent — the in-process rate limiter and an
+open circuit breaker — are still retried for every method.
+
+```go
+// Opt a POST into retries because the endpoint deduplicates on its own.
+retry := fetch.DefaultRetryOptions
+retry.AllowNonIdempotent = true
+client := fetch.NewClientBuilder().WithRetry(&retry).Build()
+
+// Or send an Idempotency-Key and keep the default options.
+resp, err := fetch.Post[Result](ctx, nil, url, payload, &fetch.RequestOptions{
+    Headers: http.Header{fetch.IdempotencyKeyHeader: {requestID}},
+})
+```
 
 **Rate Limit Handling:**
 
@@ -364,7 +402,7 @@ Out of the box, smooai-fetch is configured for the real world:
 ```go
 import (
     "errors"
-    "github.com/SmooAI/fetch/go/fetch/v3"
+    "github.com/SmooAI/fetch/go/fetch/v4"
 )
 
 resp, err := fetch.Get[Data](ctx, client, "https://api.example.com/data", nil)

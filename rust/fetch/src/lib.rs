@@ -63,6 +63,7 @@ pub use circuit_breaker::{CircuitBreaker, CircuitState, CircuitStateChangeCallba
 pub use error::FetchError;
 pub use rate_limit::SlidingWindowRateLimiter;
 pub use response::FetchResponse;
+pub use retry::{is_idempotent_method, is_retry_eligible, IDEMPOTENCY_KEY_HEADER};
 pub use types::{
     AuthTokenFuture, AuthTokenProvider, FetchContainerOptions, FetchOptions, Method,
     RateLimitRetryOptions, RequestInit, RetryCallback, RetryContext, RetryDecision, RetryOptions,

@@ -36,6 +36,7 @@ pub fn default_retry_options() -> RetryOptions {
         max_interval_ms: None,
         fast_first: false,
         on_rejection: None,
+        allow_non_idempotent: false,
     }
 }
 

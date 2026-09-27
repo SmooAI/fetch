@@ -388,8 +388,23 @@ pub async fn fetch_with_redirect_policy<T: DeserializeOwned + Clone + Send + 'st
         }
     };
 
-    // 4. Execute with retry (or just once if no retry options)
-    let result = if let Some(ref retry_opts) = opts.retry {
+    // 4. Execute with retry (or just once if no retry options).
+    //
+    // Retry is gated on the request AFTER the pre-request hook (and, via the
+    // builder, the auth provider) ran, since a hook may add the
+    // `Idempotency-Key` header that opts a POST in. An ineligible request takes
+    // the no-retry path: one attempt, the underlying error unwrapped, and
+    // `on_rejection` never consulted — the first attempt may already have had
+    // its side effect (SMOODEV-3375).
+    //
+    // Each attempt runs under `timeout::with_timeout`, which DROPS the request
+    // future on expiry. Dropping it drops the per-request reqwest Client and its
+    // connection, so the server sees the cancel before any retry starts.
+    let retry_opts = opts
+        .retry
+        .as_ref()
+        .filter(|retry_opts| retry::is_retry_eligible(&init, retry_opts));
+    let result = if let Some(retry_opts) = retry_opts {
         retry::execute_with_retry(retry_opts, operation).await
     } else {
         // No retry, just execute once with timeout

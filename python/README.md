@@ -277,13 +277,50 @@ Out of the box, smooai-fetch is configured for the real world:
 - 2 automatic retries on failure
 - Exponential backoff: 500ms -> 1s -> 2s
 - Jitter to prevent thundering herds
-- Only retries on network errors or 5xx responses
+- Only retries on network errors, timeouts, 429 or 5xx responses
+- **Only idempotent requests are retried** (see below)
 
 **Timeout Protection:**
 
-- 10-second default timeout
-- Prevents indefinite hangs
+- 30-second default timeout, applied to each attempt as a whole
+- A timed-out attempt is cancelled and its connection closed before any retry, so the server sees it abandoned
 - Configurable per request
+
+### Retries are method-aware (4.0 behavior change)
+
+Retrying re-sends the request. For a POST that timed out or got a 429/5xx, that can
+run its side effect twice — a second charge, a duplicate message, a second billed
+image. So by default only methods that are idempotent per RFC 9110 are retried:
+`GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT`, `DELETE`. A `POST` or `PATCH` makes exactly
+one attempt and raises its own error (`HTTPResponseError`, `TimeoutError`, ...), not
+`RetryError`. This includes a **429 with `Retry-After`**: it is not retried for a POST
+unless you opt in.
+
+Opt in when the endpoint is safe to replay, either per client/request:
+
+```python
+from smooai_fetch import FetchOptions, RetryOptions, fetch
+
+await fetch(
+    "https://api.example.com/jobs",
+    FetchOptions(method="POST", body=job, retry=RetryOptions(allow_non_idempotent=True)),
+)
+```
+
+or by sending an `Idempotency-Key` header (any casing, non-empty), which lets a
+server that honours it deduplicate the replay:
+
+```python
+await fetch(
+    "https://api.example.com/charges",
+    FetchOptions(method="POST", body=charge, headers={"Idempotency-Key": charge_id}),
+)
+```
+
+Eligibility is decided after pre-request hooks and the auth provider run, so a hook
+can add the key. `is_idempotent_method()` and `IDEMPOTENCY_KEY_HEADER` are exported.
+The in-process rate limiter's own retry loop is unaffected: it rejects before anything
+is sent.
 
 **Rate Limit Handling:**
 

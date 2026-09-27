@@ -51,7 +51,17 @@ type RetryOptions struct {
 	// FastFirst, when true, fires the first retry with zero delay.
 	FastFirst bool
 	// OnRejection is consulted before each retry. If nil, all attempts use RetryDefault.
+	// It is never consulted for a request that is not retry-eligible (see
+	// AllowNonIdempotent): such a request makes exactly one attempt.
 	OnRejection OnRejectionFunc
+	// AllowNonIdempotent opts a non-idempotent request (POST, PATCH, …) into
+	// retries. By default only idempotent methods per RFC 9110 §9.2.2 (GET, HEAD,
+	// OPTIONS, TRACE, PUT, DELETE) are retried, because re-sending a POST that
+	// timed out or failed with a 429/5xx can execute its side effect twice — the
+	// server may have acted on the first attempt. A request carrying a non-empty
+	// Idempotency-Key header is retried without this flag, since the key is the
+	// server-side contract that makes a replay safe.
+	AllowNonIdempotent bool
 }
 
 // RateLimitRetryOptions aliases RetryOptions for rate-limit-specific retry configuration,

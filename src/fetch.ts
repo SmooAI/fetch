@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import merge from 'lodash.merge';
-import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, Timeout, TimeoutError } from 'mollitia';
+import { BreakerError, BreakerState, Circuit, Module, Ratelimit, RatelimitError, Retry, RetryMode, SlidingCountBreaker, TimeoutError } from 'mollitia';
 import { CONTEXT, ContextHeader, ContextKey, ContextKeyHttp, ContextKeyHttpRequest, ContextKeyHttpResponse } from '@smooai/logger/Logger';
 import { handleSchemaValidation, HumanReadableSchemaError } from '@smooai/utils/validation/standardSchema';
 import { contextLogger } from './logger';
@@ -229,7 +229,7 @@ export type RetryCallback = (err: any, attempt: number) => boolean | number;
 /**
  * Configuration options for retry behavior.
  */
-interface RetryOptions {
+export interface RetryOptions {
     /** Number of retry attempts */
     attempts: number;
     /** Initial delay between retries in milliseconds */
@@ -246,6 +246,56 @@ interface RetryOptions {
     jitterAdjustment?: number;
     /** Callback to determine if and when to retry */
     onRejection?: RetryCallback;
+    /**
+     * Retry non-idempotent methods (POST, PATCH, ...) too. Off by default.
+     *
+     * Only idempotent methods (RFC 9110 §9.2.2: GET, HEAD, OPTIONS, TRACE, PUT,
+     * DELETE) are retried unless this is set or the request carries an
+     * `Idempotency-Key` header. A POST that timed out or got a 429/5xx may
+     * already have done its work server-side — re-sending it bills a second
+     * image, sends a second message, charges a card twice. Set this only when
+     * the endpoint tolerates a duplicate, and prefer an `Idempotency-Key`.
+     *
+     * This overrides `onRejection`: an ineligible request makes exactly one
+     * attempt and `onRejection` is never consulted.
+     */
+    allowNonIdempotent?: boolean;
+}
+
+/** Header that, when set to a non-empty value, makes a non-idempotent request retry-eligible. */
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
+
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE']);
+
+/**
+ * Whether an HTTP method is idempotent per RFC 9110 §9.2.2 — i.e. sending it
+ * twice has the same effect on the server as sending it once. Case-insensitive;
+ * anything unrecognised is treated as non-idempotent.
+ */
+export function isIdempotentMethod(method: string | undefined): boolean {
+    return IDEMPOTENT_METHODS.has((method ?? 'GET').toUpperCase());
+}
+
+function hasIdempotencyKey(headers: RequestInit['headers']): boolean {
+    if (!headers) return false;
+    let value: string | null = null;
+    if (headers instanceof Headers) {
+        value = headers.get(IDEMPOTENCY_KEY_HEADER);
+    } else {
+        const entries = Array.isArray(headers) ? headers : Object.entries(headers);
+        const found = entries.find(([key]) => key.toLowerCase() === IDEMPOTENCY_KEY_HEADER.toLowerCase());
+        value = found ? String(found[1]) : null;
+    }
+    return !!value && value.trim().length > 0;
+}
+
+/**
+ * Whether a failed attempt of this request may be re-sent: its method is
+ * idempotent, the caller set `retry.allowNonIdempotent`, or it carries a
+ * non-empty `Idempotency-Key` header (the server then dedupes for us).
+ */
+export function isRetryEligible(init: Pick<RequestInit, 'method' | 'headers'>, retry?: Partial<RetryOptions>): boolean {
+    return isIdempotentMethod(init.method) || !!retry?.allowNonIdempotent || hasIdempotencyKey(init.headers);
 }
 
 export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
@@ -327,7 +377,10 @@ export interface LifecycleHooks<T = any> {
 export interface RequestOptions<Schema extends StandardSchemaV1 = never> {
     /** Custom logger for request logging */
     logger?: LoggerInterface;
-    /** Timeout configuration */
+    /**
+     * Per-attempt timeout. When it fires the attempt is ABORTED (its
+     * connection is closed, so the server sees the cancel) before any retry.
+     */
     timeout?: {
         /** Timeout duration in milliseconds */
         timeoutMs: number;
@@ -343,8 +396,13 @@ export interface RequestOptions<Schema extends StandardSchemaV1 = never> {
      * Ignored in browser/worker environments (no connect-timeout knob there).
      */
     connectTimeoutMs?: number;
-    /** Retry configuration */
-    retry?: RetryOptions;
+    /**
+     * Retry configuration, deep-merged over {@link DEFAULT_RETRY_OPTIONS}, so
+     * `retry: { allowNonIdempotent: true }` keeps every other default.
+     * POST/PATCH are not retried unless `allowNonIdempotent` is set or the
+     * request carries an `Idempotency-Key` — see {@link RetryOptions.allowNonIdempotent}.
+     */
+    retry?: Partial<RetryOptions>;
     /** Schema for response validation. Must be a StandardSchemaV1 compatible schema (e.g., Zod schema) */
     schema?: Schema;
     /** Lifecycle hooks for request/response handling */
@@ -466,11 +524,20 @@ function generateRandomName(prefix: string): string {
     return `${prefix}-${++moduleSequence}`;
 }
 
-function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options: RequestOptions<Schema>): Module[] {
+function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options: RequestOptions<Schema>, init: RequestInit): Module[] {
     const modules: Module[] = [];
     const logger = options.logger || contextLoggerToUse;
+    const retryEligible = isRetryEligible(init, options.retry);
+    const onRejection = options.retry?.onRejection;
 
-    if (options.retry) {
+    // No Retry module at all for an ineligible request: one attempt, and the
+    // underlying error surfaces as-is rather than as a RetryError.
+    //
+    // There is deliberately no mollitia `Timeout` module here either. It only
+    // RACED the attempt — the losing fetch kept running, so a timed-out POST
+    // stayed in flight server-side while the retry sent it again. The timeout
+    // now lives in `doGlobalFetch`, where it can abort the request itself.
+    if (options.retry && retryEligible) {
         modules.push(
             new Retry({
                 name: generateRandomName('smooai-fetch-retry'),
@@ -480,17 +547,8 @@ function prepareCircuitModules<Schema extends StandardSchemaV1 = never>(options:
                 mode: options.retry.mode,
                 factor: options.retry.factor,
                 jitterAdjustment: options.retry.jitterAdjustment,
-                onRejection: options.retry.onRejection,
-            }),
-        );
-    }
-
-    if (options.timeout) {
-        modules.push(
-            new Timeout({
-                name: generateRandomName('smooai-fetch-timeout'),
-                logger: logger,
-                delay: options.timeout.timeoutMs,
+                // A request the CALLER aborted is finished, not failed — never re-send it.
+                onRejection: (error, attempt) => (init.signal?.aborted ? false : onRejection ? onRejection(error, attempt) : true),
             }),
         );
     }
@@ -645,6 +703,60 @@ async function doGlobalFetch<Schema extends StandardSchemaV1 = never>(
         }
     }
 
+    // Per-attempt timeout that ABORTS the request. The caller's own signal still
+    // works: either one aborting cancels the fetch.
+    const timeoutMs = options?.timeout?.timeoutMs;
+    const timeoutController = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs !== undefined) {
+        timer = setTimeout(() => timeoutController.abort(new TimeoutError()), timeoutMs);
+        useInit.signal = init?.signal ? anySignal([init.signal, timeoutController.signal]) : timeoutController.signal;
+    }
+
+    try {
+        const attempt = sendAndRead<Schema>(url, useInit, options);
+        if (timeoutMs === undefined) return await attempt;
+        // Race as well as abort: a fetch implementation that ignores `signal` (a
+        // polyfill, a test double) must still time out on schedule. With a
+        // compliant fetch the abort has already torn the request down.
+        return await Promise.race([
+            attempt,
+            new Promise<never>((_, reject) => {
+                timeoutController.signal.addEventListener('abort', () => reject(timeoutController.signal.reason), { once: true });
+            }),
+        ]);
+    } catch (error) {
+        // undici rejects with the abort reason, a browser with an AbortError —
+        // normalise both to the TimeoutError the retry policy and callers expect.
+        if (timeoutController.signal.aborted && !init?.signal?.aborted) {
+            throw timeoutController.signal.reason instanceof TimeoutError ? timeoutController.signal.reason : new TimeoutError();
+        }
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/** `AbortSignal.any` where available (Node 20+, modern browsers), else a manual fan-in. */
+function anySignal(signals: AbortSignal[]): AbortSignal {
+    const any = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+    if (any) return any(signals);
+    const controller = new AbortController();
+    for (const signal of signals) {
+        if (signal.aborted) {
+            controller.abort(signal.reason);
+            break;
+        }
+        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    }
+    return controller.signal;
+}
+
+async function sendAndRead<Schema extends StandardSchemaV1 = never>(
+    url: RequestInfo,
+    useInit: RequestInit,
+    options?: RequestOptions<Schema>,
+): Promise<ResponseWithBody<ResponseType<Schema>>> {
     const response = await globalFetch()(url, useInit);
     let isJson = false;
     let data: ResponseType<Schema> | undefined;
@@ -702,13 +814,6 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
     init: RequestInit,
     options: RequestOptions<Schema>,
 ): Promise<ResponseWithBody<ResponseType<Schema>>> {
-    const circuit = new Circuit({
-        name: 'node-fetch-circuit',
-        func: doGlobalFetch,
-        options: {
-            modules: prepareCircuitModules(options),
-        },
-    });
     const logger = options.logger || contextLoggerToUse;
 
     // Apply pre-request hook if present (supports async hooks)
@@ -720,6 +825,17 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
             url = hookResult[0];
         }
     }
+
+    // Built AFTER the pre-request hook: retry eligibility depends on the final
+    // method and headers, and a hook may be what adds the Idempotency-Key.
+    const retryEligible = isRetryEligible(modifiedInit, options.retry);
+    const circuit = new Circuit({
+        name: 'node-fetch-circuit',
+        func: doGlobalFetch,
+        options: {
+            modules: prepareCircuitModules(options, modifiedInit),
+        },
+    });
 
     const urlObj = new URL(url.toString());
     const safeUrl = redactUrl(url.toString());
@@ -777,7 +893,7 @@ async function doFetch<Schema extends StandardSchemaV1 = never>(
                     },
                 },
             });
-        } else if (options.retry && error instanceof HTTPResponseError) {
+        } else if (options.retry && retryEligible && error instanceof HTTPResponseError) {
             if (options.retry.onRejection && options.retry.onRejection(error, 1)) {
                 logger.error(error, `HTTP request "${modifiedInit.method} ${safeUrl}" retries failed after ${options.retry.attempts} retries`, {
                     [ContextKey.Http]: {
@@ -972,11 +1088,13 @@ export class FetchBuilder<Schema extends StandardSchemaV1 = never> {
 
     /**
      * Configures retry behavior for failed requests.
-     * If not specified, uses DEFAULT_RETRY_OPTIONS.
+     * If not specified, uses DEFAULT_RETRY_OPTIONS; a partial is merged over it.
+     * POST/PATCH are only retried with `allowNonIdempotent: true` or an
+     * `Idempotency-Key` header.
      * @param options - Retry configuration options
      * @returns The builder instance for method chaining
      */
-    withRetry(options: RetryOptions = DEFAULT_RETRY_OPTIONS): FetchBuilder<Schema> {
+    withRetry(options: Partial<RetryOptions> = DEFAULT_RETRY_OPTIONS): FetchBuilder<Schema> {
         this._requestOptions = {
             ...this._requestOptions,
             retry: options,
